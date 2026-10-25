@@ -68,9 +68,10 @@ class UsageScreenTest {
         assertEquals("45", totals["推理 Token"])
         val group = UsageSummary.UsageGroup(input = usage.input, cacheRead = 200)
         val metrics = groupMetrics(group).associate { it.label to it.value }
-        assertEquals(7, metrics.size)
+        assertEquals(8, metrics.size)
         assertEquals(fmtNum(group.input), metrics["输入 Token"])
         assertEquals("200", metrics["缓存读取 Token"])
+        assertEquals("0", metrics["缓存写入 Token"])
         assertEquals("0", metrics["错误"])
         assertEquals("$0.00", metrics["费用"])
     }

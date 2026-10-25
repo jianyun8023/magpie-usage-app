@@ -320,6 +320,7 @@ internal fun groupMetrics(item: UsageSummary.UsageGroup): List<UsageMetric> = li
     UsageMetric("输入 Token", fmtNum(item.input)),
     UsageMetric("输出 Token", fmtNum(item.output)),
     UsageMetric("缓存读取 Token", fmtNum(item.cacheRead)),
+    UsageMetric("缓存写入 Token", fmtNum(item.cacheWrite)),
 )
 
 @Composable
