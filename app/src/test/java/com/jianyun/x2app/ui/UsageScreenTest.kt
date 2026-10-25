@@ -2,6 +2,7 @@ package com.jianyun.x2app.ui
 
 import com.jianyun.x2app.data.UsageSummary
 import java.time.Instant
+import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -75,13 +76,21 @@ class UsageScreenTest {
     }
 
     @Test
-    fun totalTokensUseInputAndOutputWithoutAddingCacheOrReasoning() {
+    fun totalTokensIncludeCacheReadAndWriteWithoutDoubleCountingReasoning() {
         val usage = UsageSummary(input = 120, output = 30, cacheRead = 400, cacheWrite = 50, reasoning = 20)
-        assertEquals("150", overviewMetrics(usage).single { it.label == "总计 Token" }.value)
-        val group = UsageSummary.UsageGroup(input = 120, output = 30, cacheRead = 400)
-        assertEquals("150", groupMetrics(group).single { it.label == "总计 Token" }.value)
+        assertEquals("600", overviewMetrics(usage).single { it.label == "总计 Token" }.value)
+        val group = UsageSummary.UsageGroup(input = 120, output = 30, cacheRead = 400, cacheWrite = 50)
+        assertEquals("600", groupMetrics(group).single { it.label == "总计 Token" }.value)
         assertEquals("0", overviewMetrics(UsageSummary()).single { it.label == "总计 Token" }.value)
         assertEquals("0", groupMetrics(UsageSummary.UsageGroup()).single { it.label == "总计 Token" }.value)
+    }
+
+    @Test
+    fun groupCacheWriteIsDecodedAndOlderResponsesRemainCompatible() {
+        val group = Json.decodeFromString<UsageSummary.UsageGroup>("""{"input":120,"output":30,"cache_read":400,"cache_write":50}""")
+        assertEquals("600", groupMetrics(group).single { it.label == "总计 Token" }.value)
+        val older = Json.decodeFromString<UsageSummary.UsageGroup>("""{"input":120,"output":30,"cache_read":400}""")
+        assertEquals("550", groupMetrics(older).single { it.label == "总计 Token" }.value)
     }
 
     @Test

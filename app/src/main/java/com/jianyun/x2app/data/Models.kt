@@ -139,6 +139,7 @@ data class UsageSummary(
         val input: Long = 0,
         val output: Long = 0,
         @SerialName("cache_read") val cacheRead: Long = 0,
+        @SerialName("cache_write") val cacheWrite: Long = 0,
         val cost: Double = 0.0,
     )
 

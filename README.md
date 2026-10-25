@@ -78,7 +78,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 ## 验证与已知限制
 
-目前通过 96 项单元测试与 1 项 Activity 重建回归测试。真机 UI 在 Note X2、Android 11、字体缩放 1.15 下检查；已验证 WireGuard 加密隧道访问、Headscale IP / MagicDNS 访问、两种 VPN 双向切换，以及 App 冷启动后手动重连。
+目前通过 97 项单元测试与 1 项 Activity 重建回归测试。真机 UI 在 Note X2、Android 11、字体缩放 1.15 下检查；已验证 WireGuard 加密隧道访问、Headscale IP / MagicDNS 访问、两种 VPN 双向切换，以及 App 冷启动后手动重连。
 
 - 官方 Tailscale 账号登录尚未实测；其他设备、ROM 和字体缩放仍需验证。未验证常驻 VPN、开机自动连接或系统杀进程后的自动恢复。
 - **Magpie Web Key 目前存于普通 SharedPreferences，未加密，且未从系统备份中排除。** VPN 配置的加密存储不代表所有凭据都已加密。
@@ -95,4 +95,4 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 版本标签（例如 `v0.1.0`）须与 `versionName` 一致，检查通过后构建签名 Release APK，发布到 GitHub Release，附带 SHA256 校验文件。签名使用仓库 Secrets `RELEASE_KEYSTORE_BASE64` 和 `RELEASE_KEYSTORE_PASSWORD`；后续版本必须沿用同一密钥。本地签名备份位于被 Git 忽略的 `.release-signing/`，不要提交或公开。
 
-概览及 Agent、模型、账号分组的“总计 Token”均为输入 + 输出，与 Magpie 默认概览口径一致，缓存和推理 Token 不额外加入。正式 Release 签名与本地 Debug 签名不同，切换安装前应保存原有配置。
+概览及 Agent、模型、账号分组的“总计 Token”均为输入 + 输出 + 缓存读取 + 缓存写入，与 Magpie「含缓存」口径一致；推理 Token 已计入输出，不重复加入。正式 Release 签名与本地 Debug 签名不同，切换安装前应保存原有配置。

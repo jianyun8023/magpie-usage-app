@@ -1,7 +1,7 @@
 首个公开版本，支持 Android 11 及以上的 ARM 设备（arm64-v8a、armeabi-v7a）。
 
 - 查看额度、重置窗口、请求流水及周期用量。
-- 概览及 Agent、模型、账号分组新增“总计 Token”，按输入 + 输出统计；缓存与推理不重复加入。
+- 概览及 Agent、模型、账号分组新增“总计 Token”，按输入 + 输出 + 缓存读取 + 缓存写入统计；推理已计入输出，不重复加入。
 - 内置 WireGuard、Tailscale，支持自建 Headscale。
 - GitHub Actions 自动构建、单元测试及 lint；版本标签通过检查后发布签名 APK 和 SHA256 校验文件。
 
