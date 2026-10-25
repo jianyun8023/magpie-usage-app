@@ -1,13 +1,17 @@
 package com.jianyun.x2app.ui
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -20,10 +24,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -46,7 +53,7 @@ fun QuotasScreen(
     when (state) {
         is LoadState.Loading -> LoadingBox()
         is LoadState.Failed -> ErrorBox(state.message, onRefresh)
-        is LoadState.Ready -> QuotasBody(state, ignoredIds, onToggleIgnored)
+        is LoadState.Ready -> QuotasBody(state, ignoredIds, onToggleIgnored, onRefresh)
     }
 }
 
@@ -55,6 +62,7 @@ private fun QuotasBody(
     state: LoadState.Ready<List<QuotaCard>>,
     ignoredIds: Set<String>,
     onToggleIgnored: (String, Boolean) -> Unit,
+    onRefresh: () -> Unit,
 ) {
     var page by rememberSaveable { mutableStateOf(0) }
     var managing by rememberSaveable { mutableStateOf(false) }
@@ -101,22 +109,30 @@ private fun QuotasBody(
             val visible = visibleData.drop(safePage * perPage).take(perPage)
             Column(Modifier.fillMaxSize()) {
                 Column(
-                    Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    visible.chunked(columns).forEach { rowCards ->
+                    val rowData = visible.chunked(columns)
+                    rowData.forEach { rowCards ->
                         Row(
-                            Modifier.fillMaxWidth(),
+                            Modifier.weight(1f).fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
                             rowCards.forEach { card ->
-                                QuotaCardItem(card, Modifier.weight(1f))
+                                QuotaCardItem(
+                                    card = card,
+                                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                                    onRefresh = onRefresh,
+                                    onHide = { onToggleIgnored(quotaId(card), true) },
+                                )
                             }
                             repeat(columns - rowCards.size) {
                                 Spacer(Modifier.weight(1f))
                             }
                         }
+                    }
+                    repeat(rows - rowData.size) {
+                        Spacer(Modifier.weight(1f))
                     }
                 }
                 if (pageCount > 1) {
@@ -196,72 +212,130 @@ private fun quotaDisplayTitle(card: QuotaCard): String =
 fun windowsShown(card: QuotaCard): List<QuotaWindow> {
     val seen = LinkedHashMap<String, QuotaWindow>()
     for (window in card.windows) {
-        val key = window.pool ?: window.name
+        val key = listOf(
+            window.pool ?: window.name,
+            window.used,
+            window.remaining,
+            window.startsAt,
+            window.resetsAt,
+            window.display,
+            window.amount,
+            window.limit,
+            window.unlimited,
+        ).joinToString("\u001F")
         if (key !in seen) seen[key] = window
     }
     return seen.values.toList()
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun QuotaCardItem(card: QuotaCard, modifier: Modifier = Modifier) {
-    Column(
+fun QuotaCardItem(
+    card: QuotaCard,
+    modifier: Modifier = Modifier,
+    onRefresh: () -> Unit,
+    onHide: () -> Unit,
+) {
+    var showActions by remember { mutableStateOf(false) }
+    Box(
         modifier
             .border(1.dp, Ink.fg)
             .background(Ink.bg)
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+            .combinedClickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = {},
+                onLongClick = { showActions = true },
+            )
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                quotaDisplayTitle(card),
-                fontWeight = FontWeight.Bold,
-                fontSize = 19.sp,
-                color = Ink.fg,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
-            Text(
-                when {
-                    card.hasError -> "! 不可达"
-                    card.isBalance -> "余额"
-                    card.kind == "plan" -> "计划"
-                    else -> "订阅"
-                },
-                fontSize = 13.sp,
-                fontWeight = if (card.hasError) FontWeight.Bold else FontWeight.Normal,
-                color = Ink.fg,
-            )
-        }
-        val subtitle = listOfNotNull(
-            card.from,
-            card.plan,
-            card.user?.takeIf { it.isNotBlank() && !card.name.contains(it) },
-        ).joinToString(" · ")
-        if (subtitle.isNotEmpty()) {
-            Text(subtitle, fontSize = 13.sp, color = Ink.fgSoft, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        }
-        when {
-            card.hasError -> Text(card.error ?: "未知错误", fontSize = 14.sp, color = Ink.fg)
-            card.isBalance -> {
-                Text("剩余", fontSize = 13.sp, color = Ink.fgSoft)
-                Text(card.balance ?: "—", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = Ink.fg)
-                if (card.balanceSplit.isNotEmpty()) {
-                    Text(
-                        card.balanceSplit.joinToString(" · ") { "${it.label} ${it.text}" },
-                        fontSize = 13.sp,
-                        color = Ink.fgSoft,
-                    )
+        Column(
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    quotaDisplayTitle(card),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 19.sp,
+                    color = Ink.fg,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                Box(
+                    Modifier.defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
+                        .semantics { contentDescription = "刷新 ${quotaDisplayTitle(card)}" }
+                        .inkClickable(onClick = onRefresh),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("↻", fontSize = 24.sp, color = Ink.fg)
+                }
+                Text(
+                    when {
+                        card.hasError -> "! 不可达"
+                        card.isBalance -> "余额"
+                        card.kind == "plan" -> "计划"
+                        else -> "订阅"
+                    },
+                    fontSize = 13.sp,
+                    fontWeight = if (card.hasError) FontWeight.Bold else FontWeight.Normal,
+                    color = Ink.fg,
+                )
+            }
+            val subtitle = listOfNotNull(
+                card.from,
+                card.plan,
+                card.user?.takeIf { it.isNotBlank() && !card.name.contains(it) },
+            ).joinToString(" · ")
+            if (subtitle.isNotEmpty()) {
+                Text(subtitle, fontSize = 13.sp, color = Ink.fgSoft, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+            when {
+                card.hasError -> Text(card.error ?: "未知错误", fontSize = 14.sp, color = Ink.fg)
+                card.isBalance -> {
+                    Text("剩余", fontSize = 13.sp, color = Ink.fgSoft)
+                    Text(card.balance ?: "—", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = Ink.fg)
+                    if (card.balanceSplit.isNotEmpty()) {
+                        Text(
+                            card.balanceSplit.joinToString(" · ") { "${it.label} ${it.text}" },
+                            fontSize = 13.sp,
+                            color = Ink.fgSoft,
+                        )
+                    }
+                }
+                else -> {
+                    val windows = windowsShown(card).sortedBy { remainingPercent(it) ?: 101 }
+                    if (windows.isEmpty()) Text("暂无额度窗口", fontSize = 14.sp, color = Ink.fgSoft)
+                    windows.forEach { WindowRow(it) }
                 }
             }
-            else -> {
-                val windows = windowsShown(card)
-                if (windows.isEmpty()) Text("暂无额度窗口", fontSize = 14.sp, color = Ink.fgSoft)
-                windows.forEach { WindowRow(it) }
+            card.until?.let {
+                Text("到期 ${fmtReset(it)}", fontSize = 12.sp, color = Ink.fgSoft)
+            }
+            card.readAt?.let {
+                Text("读取 ${fmtReset(it)}", fontSize = 12.sp, color = Ink.fgSoft)
             }
         }
-        card.readAt?.let {
-            Text("读取 ${fmtReset(it)}", fontSize = 12.sp, color = Ink.fgSoft)
+        if (showActions) {
+            androidx.compose.ui.window.Popup(
+                onDismissRequest = { showActions = false },
+                properties = androidx.compose.ui.window.PopupProperties(focusable = true),
+            ) {
+                Text(
+                    "隐藏卡片",
+                    Modifier.defaultMinSize(minWidth = 160.dp, minHeight = 48.dp)
+                        .background(Ink.bg)
+                        .border(1.dp, Ink.fg)
+                        .inkClickable {
+                            showActions = false
+                            onHide()
+                        }
+                        .padding(16.dp),
+                    color = Ink.fg,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
         }
     }
 }
@@ -292,8 +366,8 @@ fun WindowRow(window: QuotaWindow) {
             )
         }
         if (window.unlimited != true && remainingPct != null) {
-            Spacer(Modifier.height(6.dp))
-            Box(Modifier.fillMaxWidth().height(10.dp).background(Ink.barBg).border(1.dp, Ink.fg)) {
+            Spacer(Modifier.height(4.dp))
+            Box(Modifier.fillMaxWidth().height(8.dp).background(Ink.barBg).border(1.dp, Ink.fg)) {
                 Box(
                     Modifier.fillMaxWidth(remainingPct / 100f).fillMaxHeight().background(Ink.fg)
                 )
@@ -304,10 +378,23 @@ fun WindowRow(window: QuotaWindow) {
         }
         val details = listOfNotNull(
             window.display?.takeIf { it.isNotBlank() } ?: amountDetails,
+            window.startsAt?.let { "开始 ${fmtReset(it)}" },
             window.resetsAt?.let { "重置 ${fmtReset(it)}" },
         ).joinToString(" · ")
         if (details.isNotEmpty()) {
             Text(details, fontSize = 12.sp, color = Ink.fgSoft, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        }
+        val holdsDetails = buildList {
+            window.holds?.let { holds ->
+                if (holds.tokens > 0) add("占用 ${formatAmount(holds.tokens)} Token")
+                if (holds.cost > 0) add("占用费用 $%.2f".format(holds.cost))
+            }
+            window.holdsWhy?.takeIf { it.isNotBlank() }?.let { reason ->
+                add(if (reason.equals("low", ignoreCase = true)) "额度偏低" else reason)
+            }
+        }.joinToString(" · ")
+        if (holdsDetails.isNotEmpty()) {
+            Text(holdsDetails, fontSize = 12.sp, color = Ink.fgSoft, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
     }
 }
