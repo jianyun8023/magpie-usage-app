@@ -182,6 +182,7 @@ fun App(settings: SettingsStore) {
                         ignoredIds = ignoredQuotaIds,
                         onToggleIgnored = settings::setQuotaIgnored,
                         onRefresh = vm::refreshQuotas,
+                        onRefreshCard = vm::refreshQuota,
                     )
                     tab == Tab.LEDGER -> LedgerScreen(
                         state = ledgerState,

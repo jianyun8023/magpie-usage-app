@@ -1,10 +1,13 @@
-首个公开版本，支持 Android 11 及以上的 ARM 设备（arm64-v8a、armeabi-v7a）。
+本次更新直接接入 Magpie 模型网关，并修复额度卡片展示和刷新。
 
-- 查看额度、重置窗口、请求流水及周期用量。
-- 概览及 Agent、模型、账号分组新增“总计 Token”，按输入 + 输出 + 缓存读取 + 缓存写入统计；推理已计入输出，不重复加入。
-- 内置 WireGuard、Tailscale，支持自建 Headscale。
-- GitHub Actions 自动构建、单元测试及 lint；版本标签通过检查后发布签名 APK 和 SHA256 校验文件。
+- 用量、请求流水和额度改用 `/v1/magpie/...` 接口及网关 API Key，无需另开 `magpie web`。
+- 恢复每张额度卡片的「刷新」按钮，按上游与账号单独刷新；顶部「刷新」更新全部额度。
+- 修复 DeepSeek 返回值缺少类型时被误判为订阅的问题，显示总余额、赠送和充值明细。
+- 直连、WireGuard、Tailscale 均支持 Bearer 鉴权和 POST 刷新；网络切换或断开后不会回落直连。
+- 改善 Tailscale 子网访问、自动恢复连接，以及页面请求状态恢复。
 
-下载下方 APK 安装，使用前配置自己的 Magpie 服务地址与 Web Key。该 APK 使用固定的发布签名；此前安装的本地 debug 版本签名不同，无法直接覆盖安装，卸载前请自行保存服务器及 VPN 配置。
+升级后请在「服务器设置」中改填 Magpie 模型网关地址和网关 API Key，例如 `http://192.0.2.10:3425`，并开启服务端局域网共享。原来的 Web Key 不能作为网关 API Key 使用。受预算、模型或账号限制的 Key，数据读取范围由服务端权限决定。
 
-已知限制：Web Key 目前使用普通 SharedPreferences 存储，未排除系统备份；HTTP 默认 80 端口的 Cookie 名构造存在问题，请显式使用 3430 等非默认端口。详细使用方式、验证范围与第三方声明见 README。
+支持 Android 11 及以上 ARM 设备（arm64-v8a、armeabi-v7a）。沿用 v0.1.0 发布签名，可直接覆盖升级，保留原有配置。
+
+已知限制：网关 API Key 仍存于普通 SharedPreferences，未排除系统备份。HTTP 访问请通过可信网络、HTTPS 或 VPN。详细使用说明与第三方声明见 README。

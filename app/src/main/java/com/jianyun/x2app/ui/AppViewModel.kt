@@ -92,7 +92,9 @@ class AppViewModel internal constructor(private val config: StateFlow<ServerConf
 
     fun refreshQuotas() = fetchQuotas(asked = true)
 
-    private fun fetchQuotas(asked: Boolean) {
+    fun refreshQuota(card: QuotaCard) = fetchQuotas(asked = true, provider = card.provider, user = card.user)
+
+    private fun fetchQuotas(asked: Boolean, provider: String? = null, user: String? = null) {
         if (!ensureConfig()) return
         if (quotasJob?.isActive == true) {
             if (!asked) return
@@ -105,7 +107,7 @@ class AppViewModel internal constructor(private val config: StateFlow<ServerConf
         quotas.value = previous?.copy(refreshing = true, updateError = null) ?: LoadState.Loading
         quotasJob = viewModelScope.launch {
             try {
-                val data = api.quotas(asked = asked)
+                val data = api.quotas(asked = asked, provider = provider, user = user)
                 if (ensureConfig() && requestConfig == loadedConfig && version == quotasVersion) {
                     quotas.value = LoadState.Ready(data, updatedAt = System.currentTimeMillis())
                 }

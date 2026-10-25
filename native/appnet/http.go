@@ -12,7 +12,7 @@ import (
 const (
 	requestTimeout        = 45 * time.Second
 	dialTimeout           = 20 * time.Second
-	responseHeaderTimeout = 20 * time.Second
+	responseHeaderTimeout = 40 * time.Second // A quota refresh may read vendors for up to 30 seconds.
 	maxResponseBody       = 4 << 20
 	maxRedirects          = 4
 )
@@ -26,6 +26,18 @@ func (c *Client) HTTPGetForSession(rawURL, cookie string, expectedID int64) (*Re
 }
 
 func (c *Client) httpGet(rawURL, cookie string, expectedID int64) (*Response, error) {
+	return c.httpRequest(rawURL, "Cookie", cookie, http.MethodGet, expectedID)
+}
+
+// HTTPRequestForSession carries gateway authentication through the selected tunnel.
+func (c *Client) HTTPRequestForSession(rawURL, authorization, method string, expectedID int64) (*Response, error) {
+	if method != http.MethodGet && method != http.MethodPost {
+		return nil, errors.New("unsupported HTTP method")
+	}
+	return c.httpRequest(rawURL, "Authorization", authorization, method, expectedID)
+}
+
+func (c *Client) httpRequest(rawURL, header, credential, method string, expectedID int64) (*Response, error) {
 	session, err := c.currentSession(expectedID)
 	if err != nil {
 		return nil, err
@@ -34,13 +46,13 @@ func (c *Client) httpGet(rawURL, cookie string, expectedID int64) (*Response, er
 
 	ctx, cancel := context.WithTimeout(session.ctx, requestTimeout)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	req, err := http.NewRequestWithContext(ctx, method, rawURL, nil)
 	if err != nil {
 		return nil, publicError(err)
 	}
 	req.Header.Set("Accept", "application/json")
-	if cookie != "" {
-		req.Header.Set("Cookie", cookie)
+	if credential != "" {
+		req.Header.Set(header, credential)
 	}
 	client := &http.Client{
 		Transport: transport,

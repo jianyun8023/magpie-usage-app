@@ -39,9 +39,9 @@ class AppNetworkEngine private constructor(private val context: Context) {
     @Volatile private var client: Client? = null
     @Volatile private var nativeSessionID: Long = 0
     private var poller: Job? = null
-    private val router = AppRequestRouter(mutableMode.value, DirectHttpTransport) { route, url, cookie ->
+    private val router = AppRequestRouter(mutableMode.value, DirectHttpTransport) { route, url, authorization, method ->
         val native = checkNotNull(client) { "应用内网络尚未连接" }
-        val response = native.httpGetForSession(url, cookie, route.nativeSessionID)
+        val response = native.httpRequestForSession(url, authorization, method, route.nativeSessionID)
         HttpResponse(response.statusCode.toInt(), response.body)
     }
 

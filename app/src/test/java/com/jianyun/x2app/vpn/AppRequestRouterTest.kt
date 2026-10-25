@@ -8,19 +8,19 @@ import org.junit.Test
 
 class AppRequestRouterTest {
     @Test fun directModeUsesTheDirectTransport() = runTest {
-        val router = AppRequestRouter(AppNetworkMode.DIRECT, direct = { _, cookie ->
-            HttpResponse(200, "direct:$cookie")
-        }) { _, _, _ -> error("internal transport must not run") }
-        assertEquals("direct:session", router.get("http://example.test", "session").body)
+        val router = AppRequestRouter(AppNetworkMode.DIRECT, direct = { _, authorization, method ->
+            HttpResponse(200, "direct:$authorization:$method")
+        }) { _, _, _, _ -> error("internal transport must not run") }
+        assertEquals("direct:Bearer session:POST", router.request("http://example.test", "Bearer session", "POST").body)
     }
 
     @Test fun disconnectedSelectionDoesNotFallBackToDirect() = runTest {
-        val router = AppRequestRouter(AppNetworkMode.WIREGUARD, direct = { _, _ ->
+        val router = AppRequestRouter(AppNetworkMode.WIREGUARD, direct = { _, _, _ ->
             HttpResponse(200, "direct")
-        }) { _, _, _ -> error("not started") }
+        }) { _, _, _, _ -> error("not started") }
         router.update(AppNetworkMode.WIREGUARD, false)
         try {
-            router.get("http://example.test", "")
+            router.request("http://example.test", "", "GET")
             fail("disconnected route must not issue a request")
         } catch (_: IllegalStateException) {
         }
@@ -29,7 +29,7 @@ class AppRequestRouterTest {
     @Test fun switchRejectsAResponseFromThePreviousRoute() = runTest {
         var onInternal: (AppRoute) -> Unit = {}
         var seenSession = 0L
-        val router = AppRequestRouter(AppNetworkMode.WIREGUARD, direct = { _, _ -> error("direct") }) { route, _, _ ->
+        val router = AppRequestRouter(AppNetworkMode.WIREGUARD, direct = { _, _, _ -> error("direct") }) { route, _, _, _ ->
             seenSession = route.nativeSessionID
             onInternal(route)
             HttpResponse(200, "old-wireguard")
@@ -38,7 +38,7 @@ class AppRequestRouterTest {
         router.update(AppNetworkMode.WIREGUARD, true, 10)
         onInternal = { router.update(AppNetworkMode.TAILSCALE, true, 11) }
         try {
-            router.get("http://example.test", "")
+            router.request("http://example.test", "", "GET")
             fail("a route switch must reject the old response")
         } catch (_: IllegalStateException) {
         }
@@ -46,7 +46,7 @@ class AppRequestRouterTest {
     }
 
     @Test fun readinessChangeKeepsTheNativeSessionIdentity() {
-        val router = AppRequestRouter(AppNetworkMode.TAILSCALE, direct = { _, _ -> error("direct") }) { _, _, _ ->
+        val router = AppRequestRouter(AppNetworkMode.TAILSCALE, direct = { _, _, _ -> error("direct") }) { _, _, _, _ ->
             error("not started")
         }
         router.update(AppNetworkMode.TAILSCALE, true, 27)

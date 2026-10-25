@@ -52,6 +52,7 @@ fun QuotasScreen(
     ignoredIds: Set<String>,
     onToggleIgnored: (String, Boolean) -> Unit,
     onRefresh: () -> Unit,
+    onRefreshCard: (QuotaCard) -> Unit,
 ) {
     Column(Modifier.fillMaxSize()) {
         DataStatus(state)
@@ -59,7 +60,7 @@ fun QuotasScreen(
             when (state) {
                 is LoadState.Loading -> LoadingBox()
                 is LoadState.Failed -> ErrorBox(state.message, onRefresh)
-                is LoadState.Ready -> QuotasBody(state, ignoredIds, onToggleIgnored)
+                is LoadState.Ready -> QuotasBody(state, ignoredIds, onToggleIgnored, onRefreshCard)
             }
         }
     }
@@ -70,6 +71,7 @@ private fun QuotasBody(
     state: LoadState.Ready<List<QuotaCard>>,
     ignoredIds: Set<String>,
     onToggleIgnored: (String, Boolean) -> Unit,
+    onRefreshCard: (QuotaCard) -> Unit,
 ) {
     var page by rememberSaveable { mutableStateOf(0) }
     var managing by rememberSaveable { mutableStateOf(false) }
@@ -140,6 +142,8 @@ private fun QuotasBody(
                                     modifier = Modifier.weight(1f).fillMaxHeight(),
                                     onOpen = { openedId = quotaId(card) },
                                     onHide = { onToggleIgnored(quotaId(card), true) },
+                                    onRefresh = { onRefreshCard(card) },
+                                    refreshing = state.refreshing,
                                 )
                             }
                             repeat(columns - rowCards.size) {
@@ -289,6 +293,8 @@ fun QuotaCardItem(
     modifier: Modifier = Modifier,
     onOpen: () -> Unit,
     onHide: () -> Unit,
+    onRefresh: () -> Unit,
+    refreshing: Boolean,
 ) {
     var showActions by remember { mutableStateOf(false) }
     Box(
@@ -329,6 +335,8 @@ fun QuotaCardItem(
                         color = Ink.fg,
                     )
                 }
+                Spacer(Modifier.width(8.dp))
+                InkButton("刷新", onRefresh, enabled = !refreshing)
             }
             val subtitle = listOfNotNull(
                 card.from,

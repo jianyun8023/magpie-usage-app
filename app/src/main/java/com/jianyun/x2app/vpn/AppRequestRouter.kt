@@ -23,7 +23,7 @@ internal data class AppRoute(
 internal class AppRequestRouter(
     initialMode: AppNetworkMode,
     private val direct: HttpTransport,
-    private val internalGet: suspend (AppRoute, String, String) -> HttpResponse,
+    private val internalRequest: suspend (AppRoute, String, String, String) -> HttpResponse,
 ) : HttpTransport {
     @Volatile var route = AppRoute(initialMode, initialMode == AppNetworkMode.DIRECT)
         private set
@@ -41,11 +41,11 @@ internal class AppRequestRouter(
         check(expected.ready) { "${expected.mode.label} 未连接；请求已阻止，请连接或明确选择直连" }
     }
 
-    override suspend fun get(url: String, cookie: String): HttpResponse {
+    override suspend fun request(url: String, authorization: String, method: String): HttpResponse {
         val selected = route
         requireCurrent(selected)
-        val response = if (selected.mode == AppNetworkMode.DIRECT) direct.get(url, cookie)
-            else internalGet(selected, url, cookie)
+        val response = if (selected.mode == AppNetworkMode.DIRECT) direct.request(url, authorization, method)
+            else internalRequest(selected, url, authorization, method)
         requireCurrent(selected)
         return response
     }

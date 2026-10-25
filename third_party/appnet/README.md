@@ -40,6 +40,8 @@
 
 `JNI-API.txt` 是对最终 AAR `classes.jar` 执行 `javap` 得到的接口记录。Go `int` 经 gobind 映射为 Java `long`。当前 SHA-256 见 [SHA256SUMS](SHA256SUMS)，包含两个 ARM ABI。
 
+应用通过 `Client.HTTPRequestForSession(url, authorization, method, sessionID)` 请求模型网关，支持 GET / POST 和 Authorization 请求头。额度读取使用 GET，手动刷新使用 POST；请求始终绑定所选网络会话，切换或断开不会回落直连。旧 HTTPGet 接口保留供原生网络回归测试使用。
+
 ## 状态存储兼容
 
 tsnet 状态继续使用旧官方引擎的 `statestore-<key>` 键名和 `base64.RawStdEncoding` 编码，已存在的 Headscale/Tailscale 身份可直接迁移，Logout 才会清除身份。`native/appnet/store_test.go` 覆盖读写、删除和损坏状态 fail-closed。

@@ -3,7 +3,7 @@ package com.jianyun.x2app.data
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-// GET /api/usage/quotas —— 额度卡片
+// GET /v1/magpie/quotas/cards —— 额度卡片
 @Serializable
 data class QuotaCard(
     val provider: String,
@@ -21,7 +21,8 @@ data class QuotaCard(
     val until: String? = null,
     val resets: QuotaResets? = null,
 ) {
-    val isBalance: Boolean get() = kind == "balance"
+    val isBalance: Boolean get() = kind == "balance" ||
+        (kind.isNullOrBlank() && (!balance.isNullOrBlank() || balanceSplit.isNotEmpty()))
     val hasError: Boolean get() = error != null
 }
 
@@ -73,7 +74,7 @@ data class BalanceSplit(
     val text: String = "",
 )
 
-// GET /api/usage/requests —— 请求流水
+// GET /v1/magpie/usage/requests —— 请求流水
 @Serializable
 data class Ledger(
     val rows: List<RequestRow> = emptyList(),
@@ -123,7 +124,7 @@ data class RequestRow(
     val ok: Boolean get() = status in 200..299 && !failed
 }
 
-// GET /api/usage —— 用量汇总
+// GET /v1/magpie/usage —— 用量汇总
 @Serializable
 data class UsageSummary(
     val period: String = "",

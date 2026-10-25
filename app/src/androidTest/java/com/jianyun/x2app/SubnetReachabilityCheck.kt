@@ -36,7 +36,7 @@ class SubnetReachabilityCheck {
             for (url in listOf("http://192.168.2.1/", "http://192.168.2.1/cgi-bin/luci/", "http://192.168.2.174:3430/")) {
                 val started = SystemClock.elapsedRealtime()
                 val outcome = try {
-                    val response = MagpieTransport.current.get(url, "")
+                    val response = MagpieTransport.current.request(url, "", "GET")
                     "HTTP ${response.statusCode} (${response.body.length} characters)"
                 } catch (failure: Exception) {
                     "failed ${failure.javaClass.simpleName}"

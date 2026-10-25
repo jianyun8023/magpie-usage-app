@@ -152,3 +152,25 @@ type memoryStore struct{}
 
 func (memoryStore) Read(string) (string, error) { return "", nil }
 func (memoryStore) Write(string, string) error  { return nil }
+
+func TestGatewayRequestCarriesBearerAndMethod(t *testing.T) {
+	for _, method := range []string{http.MethodGet, http.MethodPost} {
+		t.Run(method, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != method || r.Header.Get("Authorization") != "Bearer test-key" || r.Header.Get("Cookie") != "" {
+					t.Error("gateway method or authentication was not preserved")
+				}
+				_, _ = w.Write([]byte(`{"data":[]}`))
+			}))
+			defer server.Close()
+			client := testClientWithDial(t, (&net.Dialer{}).DialContext)
+			resp, err := client.HTTPRequestForSession(server.URL, "Bearer test-key", method, client.SessionID())
+			if err != nil || resp.StatusCode != 200 {
+				t.Fatalf("gateway request failed: %v", err)
+			}
+			if _, err := client.HTTPRequestForSession(server.URL, "Bearer test-key", method, client.SessionID()+1); err == nil {
+				t.Fatal("stale gateway request must be rejected")
+			}
+		})
+	}
+}

@@ -6,6 +6,9 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.test.core.app.ActivityScenario
 import androidx.test.platform.app.InstrumentationRegistry
 import com.jianyun.x2app.MainActivity
+import com.jianyun.x2app.api.DirectHttpTransport
+import com.jianyun.x2app.api.HttpTransport
+import com.jianyun.x2app.api.MagpieTransport
 import com.jianyun.x2app.ui.AppViewModel
 import com.jianyun.x2app.ui.LoadState
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,6 +37,7 @@ class SettingsStoreRecreationTest {
             if (value is Set<*>) value.toSet() else value
         }
         val settings = SettingsStore.get(context)
+        var originalTransport: HttpTransport? = null
         try {
             QuotaServer("before-recreate").use { oldServer ->
                 QuotaServer("after-recreate").use { newServer ->
@@ -46,12 +50,15 @@ class SettingsStoreRecreationTest {
                         lateinit var oldActivity: MainActivity
                         lateinit var retained: AppViewModel
                         scenario.onActivity { activity ->
+                            // The loopback fixture must not depend on the user's selected tunnel.
+                            originalTransport = MagpieTransport.current
+                            MagpieTransport.current = DirectHttpTransport
                             oldActivity = activity
                             retained = ViewModelProvider(activity, AppViewModel.Factory(SettingsStore.get(activity)))[AppViewModel::class.java]
                             retained.refreshQuotas()
                         }
-                        assertTrue("Initial VM request did not use the original fixture and Cookie",
-                            oldServer.receivedCookie(oldKey))
+                        assertTrue("Initial VM request did not use the original fixture and Authorization",
+                            oldServer.receivedAuthorization(oldKey))
                         awaitQuota(retained, "before-recreate")
 
                         scenario.recreate()
@@ -65,14 +72,15 @@ class SettingsStoreRecreationTest {
                             current.refreshQuotas()
                         }
                         // A request reaching this second listener proves the new address was used.
-                        // Boolean assertions deliberately never print Cookie values or credentials.
-                        assertTrue("Retained VM did not reach the new server with the new Cookie",
-                            newServer.receivedCookie(newKey))
+                        // Boolean assertions deliberately never print Authorization values or credentials.
+                        assertTrue("Retained VM did not reach the new server with the new Authorization",
+                            newServer.receivedAuthorization(newKey))
                         awaitQuota(retained, "after-recreate")
                     }
                 }
             }
         } finally {
+            originalTransport?.let { MagpieTransport.current = it }
             // Close ActivityScenario before restoring: no live UI should contact the real server.
             // Preserve missing keys as missing and leave every other preference untouched.
             instrumentation.runOnMainSync {
@@ -107,8 +115,8 @@ class SettingsStoreRecreationTest {
     private class QuotaServer(provider: String) : Closeable {
         private val server = ServerSocket(0, 8, InetAddress.getByName("127.0.0.1"))
         val url = "http://127.0.0.1:${server.localPort}"
-        private val cookies = LinkedBlockingQueue<String>()
-        private val body = """[{"provider":"$provider"}]""".toByteArray(Charsets.UTF_8)
+        private val authorizations = LinkedBlockingQueue<String>()
+        private val body = """{"data":[{"provider":"$provider"}]}""".toByteArray(Charsets.UTF_8)
         private val worker = thread(name = "settings-recreation-http", isDaemon = true) {
             while (!server.isClosed) {
                 try {
@@ -116,19 +124,21 @@ class SettingsStoreRecreationTest {
                         socket.soTimeout = 3_000
                         val reader = socket.getInputStream().bufferedReader(Charsets.US_ASCII)
                         val request = reader.readLine().orEmpty()
-                        var cookie = ""
+                        var authorization = ""
                         var host = ""
                         var count = 0
                         while (count++ < 64) {
                             val line = reader.readLine() ?: break
                             if (line.isEmpty()) break
                             when (line.substringBefore(':').lowercase()) {
-                                "cookie" -> cookie = line.substringAfter(':').trim()
+                                "authorization" -> authorization = line.substringAfter(':').trim()
                                 "host" -> host = line.substringAfter(':').trim()
                             }
                         }
-                        if (request.startsWith("GET /api/usage/quotas") && host == "127.0.0.1:${server.localPort}") {
-                            cookies.offer(cookie)
+                        val quotaRequest = request.startsWith("GET /v1/magpie/quotas/cards") ||
+                            request.startsWith("POST /v1/magpie/quotas/refresh")
+                        if (quotaRequest && host == "127.0.0.1:${server.localPort}") {
+                            authorizations.offer(authorization)
                         }
                         socket.getOutputStream().apply {
                             write(("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n" +
@@ -143,13 +153,13 @@ class SettingsStoreRecreationTest {
             }
         }
 
-        fun receivedCookie(key: String): Boolean {
-            val expected = "magpie_web_${server.localPort}=$key"
+        fun receivedAuthorization(key: String): Boolean {
+            val expected = "Bearer $key"
             val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
             while (true) {
                 val remaining = deadline - System.nanoTime()
                 if (remaining <= 0) return false
-                val actual = cookies.poll(remaining, TimeUnit.NANOSECONDS) ?: return false
+                val actual = authorizations.poll(remaining, TimeUnit.NANOSECONDS) ?: return false
                 if (actual == expected) return true
             }
         }

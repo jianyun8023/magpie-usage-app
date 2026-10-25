@@ -8,6 +8,19 @@ import org.junit.Test
 class ModelsTest {
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
+    @Test fun deepseekBalanceWithoutKindIsStillABalanceCard() {
+        val card = json.decodeFromString<QuotaCard>("""{
+            "provider":"deepseek","windows":[],"balance":"¥5.29",
+            "balanceSplit":[{"label":"Granted","text":"¥0.22"},{"label":"Topped up","text":"¥5.06"}]
+        }""")
+        assertEquals(true, card.isBalance)
+        assertEquals("¥5.29", card.balance)
+        assertEquals(2, card.balanceSplit.size)
+        assertEquals(true, card.copy(balance = "¥0.00").isBalance)
+        assertEquals(false, QuotaCard(provider = "subscription").isBalance)
+        assertEquals(false, card.copy(kind = "plan").isBalance)
+    }
+
     @Test fun legacyPayloadWithoutResetsDecodesWithNullResets() {
         val card = json.decodeFromString<QuotaCard>("""{"provider":"codex"}""")
 

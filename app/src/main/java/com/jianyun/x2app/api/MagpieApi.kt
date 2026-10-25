@@ -5,11 +5,11 @@ import com.jianyun.x2app.data.QuotaCard
 import com.jianyun.x2app.data.UsageSummary
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.net.ConnectException
 import java.net.SocketTimeoutException
 import java.net.URI
-import java.net.URL
 import java.net.URLEncoder
 import java.net.UnknownHostException
 import java.time.ZoneId
@@ -44,23 +44,26 @@ class MagpieApi(
         return normalizedBaseUrl() + path + if (query.isEmpty()) "" else "?$query"
     }
 
-    private fun port(): String = try {
-        val url = URL(normalizedBaseUrl())
-        if (url.port == -1 || url.port == 80) "" else url.port.toString()
-    } catch (_: Exception) {
-        ""
-    }
-
-    private suspend fun get(path: String, params: Map<String, String> = emptyMap()): String =
+    private suspend fun request(path: String, params: Map<String, String> = emptyMap(), method: String = "GET"): String =
         withContext(Dispatchers.IO) {
             val response = (transport ?: MagpieTransport.current)
-                .get(fullUrl(path, params), "magpie_web_${port()}=$webKey")
+                .request(fullUrl(path, params), "Bearer $webKey", method)
             if (response.statusCode !in 200..299) throw ApiException(response.statusCode, response.body.take(300))
             response.body
         }
 
-    suspend fun quotas(asked: Boolean = false): List<QuotaCard> =
-        json.decodeFromString(get("/api/usage/quotas", if (asked) mapOf("asked" to "1") else emptyMap()))
+    @Serializable
+    private data class QuotaCards(val data: List<QuotaCard>)
+
+    suspend fun quotas(asked: Boolean = false, provider: String? = null, user: String? = null): List<QuotaCard> {
+        val params = buildMap {
+            provider?.let { put("provider", it) }
+            user?.let { put("user", it) }
+        }
+        val response = if (asked) request("/v1/magpie/quotas/refresh", params, method = "POST")
+            else request("/v1/magpie/quotas/cards")
+        return json.decodeFromString<QuotaCards>(response).data
+    }
 
     suspend fun requests(
         period: String = "7d",
@@ -80,18 +83,19 @@ class MagpieApi(
             provider?.let { put("provider", it) }
             if (failed) put("failed", "1")
         }
-        return json.decodeFromString(get("/api/usage/requests", params))
+        return json.decodeFromString(request("/v1/magpie/usage/requests", params))
     }
 
     suspend fun usage(period: String = "7d", timeZone: String = ZoneId.systemDefault().id): UsageSummary =
-        json.decodeFromString(get("/api/usage", mapOf("period" to period, "tz" to timeZone)))
+        json.decodeFromString(request("/v1/magpie/usage", mapOf("period" to period, "tz" to timeZone)))
 }
 
 class ApiException(val code: Int, message: String) : Exception("HTTP $code: $message")
 
 fun Throwable.friendlyMessage(): String = when (this) {
     is ApiException -> when (code) {
-        401, 403 -> "鉴权失败，请检查 MAGPIE_WEB_KEY"
+        401 -> "鉴权失败，请检查网关 API Key"
+        403 -> "网关 API Key 无权读取这些数据，请检查共享与密钥权限"
         404 -> "接口不存在，请检查服务器地址和 Magpie 版本"
         else -> "服务器返回 HTTP $code"
     }

@@ -63,7 +63,7 @@ fun SettingsScreen(
     ) {
         Text("服务器设置", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Ink.fg)
         Text(
-            "填写运行 magpie web 的机器地址。服务需以 magpie web --lan 启动，并设置 MAGPIE_WEB_KEY。",
+            "填写 Magpie 模型网关地址，并使用已开启局域网共享的网关 API Key。",
             fontSize = 15.sp,
             color = Ink.fgSoft,
             lineHeight = 22.sp,
@@ -71,7 +71,7 @@ fun SettingsScreen(
         OutlinedTextField(
             value = url,
             onValueChange = { url = it; testResult = null; validationError = null },
-            label = { Text("地址，如 192.0.2.10:3430") },
+            label = { Text("地址，如 192.0.2.10:3425") },
             modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 56.dp),
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
@@ -83,7 +83,7 @@ fun SettingsScreen(
         OutlinedTextField(
             value = key,
             onValueChange = { key = it; testResult = null; validationError = null },
-            label = { Text("MAGPIE_WEB_KEY") },
+            label = { Text("网关 API Key") },
             modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 56.dp),
             singleLine = true,
             visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
@@ -149,7 +149,7 @@ fun SettingsScreen(
         HorizontalDivider(color = Ink.fg)
         Text("关于", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Ink.fg)
         Text(
-            "Magpie 用量 · 查看剩余额度、请求记录与用量汇总。\n数据来自 magpie web API（/api/usage*）。",
+            "Magpie 用量 · 查看剩余额度、请求记录与用量汇总。\n直接读取 Magpie 网关的用量与额度。",
             fontSize = 14.sp,
             color = Ink.fgSoft,
             lineHeight = 21.sp,

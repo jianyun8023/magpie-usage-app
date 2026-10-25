@@ -49,7 +49,7 @@ class AppViewModelTest {
             assertEquals(null, vm.ledgerProvider.value)
             await { allReady(vm) }
             assertEquals("second", (vm.quotas.value as LoadState.Ready).data.single().provider)
-            assertTrue(second.cookies.all { it.endsWith("=new-key") })
+            assertTrue(second.authorizations.all { it.endsWith("Bearer new-key") })
 
             second.status = 401
             config.value = config.value.copy(webKey = "invalid-key")
@@ -58,9 +58,9 @@ class AppViewModelTest {
                 vm.quotas.value is LoadState.Failed && vm.ledger.value is LoadState.Failed &&
                     vm.usage.value is LoadState.Failed
             }
-            assertEquals("鉴权失败，请检查 MAGPIE_WEB_KEY", (vm.quotas.value as LoadState.Failed).message)
-            assertEquals(3, first.cookies.size)
-            assertEquals(3, second.cookies.count { it.endsWith("=invalid-key") })
+            assertEquals("鉴权失败，请检查网关 API Key", (vm.quotas.value as LoadState.Failed).message)
+            assertEquals(3, first.authorizations.size)
+            assertEquals(3, second.authorizations.count { it.endsWith("Bearer invalid-key") })
         }
     }
 
@@ -83,7 +83,7 @@ class AppViewModelTest {
             val observers = vm.viewModelScope.coroutineContext[Job]!!.children.toSet()
             val gate = first.block()
             loadAll(vm)
-            await { first.cookies.size == 3 }
+            await { first.authorizations.size == 3 }
             val oldRequests = vm.viewModelScope.coroutineContext[Job]!!.children.filterNot { it in observers }.toList()
             config.value = ServerConfig(second.url, "second-key")
             loadAll(vm)
@@ -92,8 +92,8 @@ class AppViewModelTest {
             gate.countDown()
             await { first.completed.get() == 3 && oldRequests.all { it.isCompleted } }
             assertEquals(expected, Triple(vm.quotas.value, vm.ledger.value, vm.usage.value))
-            assertTrue(first.cookies.all { it.endsWith("=first-key") })
-            assertTrue(second.cookies.all { it.endsWith("=second-key") })
+            assertTrue(first.authorizations.all { it.endsWith("Bearer first-key") })
+            assertTrue(second.authorizations.all { it.endsWith("Bearer second-key") })
         }
     }
 
@@ -137,7 +137,7 @@ class AppViewModelTest {
             val gate = server.block()
             vm.loadLedger()
             vm.loadUsage()
-            await { server.cookies.size == 2 }
+            await { server.authorizations.size == 2 }
             val oldRequests = vm.viewModelScope.coroutineContext[Job]!!.children.filterNot { it in observers }.toList()
             server.gate = null
             server.status = 401
@@ -177,8 +177,8 @@ class AppViewModelTest {
     fun connectionTestNormalizesInputAndOnlyClaimsQuotaEndpointPassed() = runTest {
         withFixture { vm, _, server, _ ->
             assertEquals("连接成功，额度接口通过", vm.testConnection("  ${server.url}  ", "  test-key  "))
-            assertEquals(listOf("/api/usage/quotas"), server.requests.toList())
-            assertTrue(server.cookies.single().endsWith("=test-key"))
+            assertEquals(listOf("/v1/magpie/quotas/cards"), server.requests.toList())
+            assertTrue(server.authorizations.single().endsWith("Bearer test-key"))
             val invalid = vm.testConnection("ftp://127.0.0.1", "key")
             assertTrue(!invalid.startsWith("连接成功"))
             assertEquals(1, server.requests.size)
@@ -206,7 +206,7 @@ class AppViewModelTest {
             assertEquals("7d", vm.ledgerPeriod.value)
             await { vm.ledger.value is LoadState.Ready }
             val request = server.requests.last()
-            assertTrue(request.startsWith("/api/usage/requests?period=7d&limit=20&offset=0&tz="))
+            assertTrue(request.startsWith("/v1/magpie/usage/requests?period=7d&limit=20&offset=0&tz="))
             assertTrue(!request.contains("agent=") && !request.contains("provider=") && !request.contains("failed="))
         }
     }
@@ -302,11 +302,11 @@ class AppViewModelTest {
             val gate = server.block()
             vm.loadQuotas()
             await { server.requests.size == 1 }
-            assertEquals("/api/usage/quotas", server.requests.single())
+            assertEquals("/v1/magpie/quotas/cards", server.requests.single())
             server.gate = null
             vm.refreshQuotas()
             await { vm.quotas.value is LoadState.Ready }
-            assertEquals("/api/usage/quotas?asked=1", server.requests.last())
+            assertEquals("/v1/magpie/quotas/refresh", server.requests.last())
             gate.countDown()
             await { server.completed.get() == 2 }
         }
@@ -316,11 +316,22 @@ class AppViewModelTest {
     fun usagePassesSameReaderTimeZoneAsLedger() = runTest {
         withFixture { vm, _, server, _ ->
             MagpieApi(server.url, "key").usage(period = "today", timeZone = "Asia/Singapore")
-            assertEquals("/api/usage?period=today&tz=Asia%2FSingapore", server.requests.last())
+            assertEquals("/v1/magpie/usage?period=today&tz=Asia%2FSingapore", server.requests.last())
             vm.loadUsage()
             await { vm.usage.value is LoadState.Ready }
             val zone = java.net.URLEncoder.encode(java.time.ZoneId.systemDefault().id, "UTF-8")
-            assertEquals("/api/usage?period=7d&tz=$zone", server.requests.last())
+            assertEquals("/v1/magpie/usage?period=7d&tz=$zone", server.requests.last())
+        }
+    }
+
+    @Test
+    fun cardRefreshPassesItsProviderAndAccount() = runTest {
+        withFixture { vm, _, server, _ ->
+            vm.loadQuotas()
+            await { vm.quotas.value is LoadState.Ready }
+            vm.refreshQuota(com.jianyun.x2app.data.QuotaCard(provider = "deepseek", user = "account+1@example.com"))
+            await { server.requests.size == 2 && (vm.quotas.value as? LoadState.Ready)?.refreshing == false }
+            assertEquals("/v1/magpie/quotas/refresh?provider=deepseek&user=account%2B1%40example.com", server.requests.last())
         }
     }
 
@@ -364,7 +375,7 @@ class AppViewModelTest {
     private class Server(private val marker: String) : AutoCloseable {
         private val server = MockWebServer()
         val url get() = server.url("/").toString().trimEnd('/')
-        val cookies = ConcurrentLinkedQueue<String>()
+        val authorizations = ConcurrentLinkedQueue<String>()
         val requests = ConcurrentLinkedQueue<String>()
         val ledgerResponses = ConcurrentLinkedQueue<MockResponse>()
         val completed = AtomicInteger()
@@ -378,15 +389,15 @@ class AppViewModelTest {
                     val responseStatus = status
                     val responseGate = gate
                     requests.add(request.path.orEmpty())
-                    cookies.add(request.getHeader("Cookie").orEmpty())
+                    authorizations.add(request.getHeader("Authorization").orEmpty())
                     try {
                         check(responseGate?.await(10, TimeUnit.SECONDS) != false)
-                        if (request.requestUrl?.encodedPath == "/api/usage/requests") {
+                        if (request.requestUrl?.encodedPath == "/v1/magpie/usage/requests") {
                             ledgerResponses.poll()?.let { return it }
                         }
                         val body = when (request.requestUrl?.encodedPath) {
-                            "/api/usage/quotas" -> """[{"provider":"$marker"}]"""
-                            "/api/usage/requests" -> """{"period":"$marker","total":100,"providers":[{"id":"upstream","name":"上游"}]}"""
+                            "/v1/magpie/quotas/cards", "/v1/magpie/quotas/refresh" -> """{"object":"list","data":[{"provider":"$marker"}]}"""
+                            "/v1/magpie/usage/requests" -> """{"period":"$marker","total":100,"providers":[{"id":"upstream","name":"上游"}]}"""
                             else -> """{"period":"$marker"}"""
                         }
                         return MockResponse().setResponseCode(responseStatus).setBody(body)
