@@ -13,6 +13,7 @@ import java.net.URI
 import java.net.URL
 import java.net.URLEncoder
 import java.net.UnknownHostException
+import java.time.ZoneId
 import javax.net.ssl.SSLException
 
 // 这个 ROM 上 OkHttp 的 NIO 线程会挂起，平台 HttpURLConnection 实测正常
@@ -68,7 +69,8 @@ class MagpieApi(
             }
         }
 
-    suspend fun quotas(): List<QuotaCard> = json.decodeFromString(get("/api/usage/quotas"))
+    suspend fun quotas(asked: Boolean = false): List<QuotaCard> =
+        json.decodeFromString(get("/api/usage/quotas", if (asked) mapOf("asked" to "1") else emptyMap()))
 
     suspend fun requests(
         period: String = "7d",
@@ -77,11 +79,13 @@ class MagpieApi(
         agent: String? = null,
         provider: String? = null,
         failed: Boolean = false,
+        timeZone: String = ZoneId.systemDefault().id,
     ): Ledger {
         val params = buildMap {
             put("period", period)
             put("limit", limit.toString())
             put("offset", offset.toString())
+            put("tz", timeZone)
             agent?.let { put("agent", it) }
             provider?.let { put("provider", it) }
             if (failed) put("failed", "1")
@@ -89,8 +93,8 @@ class MagpieApi(
         return json.decodeFromString(get("/api/usage/requests", params))
     }
 
-    suspend fun usage(period: String = "7d"): UsageSummary =
-        json.decodeFromString(get("/api/usage", mapOf("period" to period)))
+    suspend fun usage(period: String = "7d", timeZone: String = ZoneId.systemDefault().id): UsageSummary =
+        json.decodeFromString(get("/api/usage", mapOf("period" to period, "tz" to timeZone)))
 }
 
 class ApiException(val code: Int, message: String) : Exception("HTTP $code: $message")

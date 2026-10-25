@@ -12,5 +12,5 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "x2-app"
+rootProject.name = "magpie-usage-app"
 include(":app")

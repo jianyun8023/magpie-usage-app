@@ -1,0 +1,13 @@
+Tailscale Android native engine — stable 1.104.2
+
+Android source: https://github.com/tailscale/tailscale-android
+Tag: 1.104.2-tc3430f0d2-gb01fa89d5
+Commit: b01fa89d5ded31492c98c881207736c39c8f329e
+Core source: https://github.com/tailscale/tailscale
+Core version: v1.104.2
+Core commit: c3430f0d2b8a1d646ad3ae867e3470bac07f1fe0
+
+The Android and core sources are licensed under BSD-3-Clause.
+Their LICENSE and PATENTS files accompany this notice.
+THIRD_PARTY_NOTICES.txt contains the Go runtime and dependency notices.
+This integration does not imply endorsement by Tailscale Inc.

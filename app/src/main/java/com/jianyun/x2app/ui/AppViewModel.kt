@@ -7,11 +7,15 @@ import com.jianyun.x2app.api.MagpieApi
 import com.jianyun.x2app.api.friendlyMessage
 import com.jianyun.x2app.data.Ledger
 import com.jianyun.x2app.data.QuotaCard
+import com.jianyun.x2app.data.ServerConfig
 import com.jianyun.x2app.data.SettingsStore
 import com.jianyun.x2app.data.UsageSummary
+import com.jianyun.x2app.data.normalizedServerConfig
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
 sealed interface LoadState<out T> {
@@ -25,8 +29,8 @@ sealed interface LoadState<out T> {
     data class Failed(val message: String) : LoadState<Nothing>
 }
 
-class AppViewModel(private val settings: SettingsStore) : ViewModel() {
-    private val api = MagpieApi("", "")
+class AppViewModel internal constructor(private val config: StateFlow<ServerConfig>) : ViewModel() {
+    constructor(settings: SettingsStore) : this(settings.config)
 
     val quotas = MutableStateFlow<LoadState<List<QuotaCard>>>(LoadState.Loading)
     val ledger = MutableStateFlow<LoadState<Ledger>>(LoadState.Loading)
@@ -35,10 +39,11 @@ class AppViewModel(private val settings: SettingsStore) : ViewModel() {
     val ledgerPeriod = MutableStateFlow("7d")
     val ledgerFailedOnly = MutableStateFlow(false)
     val ledgerAgent = MutableStateFlow<String?>(null)
+    val ledgerProvider = MutableStateFlow<String?>(null)
     val ledgerPage = MutableStateFlow(0)
     val usagePeriod = MutableStateFlow("7d")
 
-    private var loadedConfig = ""
+    private var loadedConfig: ServerConfig? = null
     private var quotasJob: Job? = null
     private var ledgerJob: Job? = null
     private var usageJob: Job? = null
@@ -46,13 +51,16 @@ class AppViewModel(private val settings: SettingsStore) : ViewModel() {
     private var ledgerVersion = 0
     private var usageVersion = 0
 
+    init {
+        viewModelScope.launch {
+            config.collect { ensureConfig() }
+        }
+    }
+
     private fun ensureConfig(): Boolean {
-        val config = settings.config.value
-        if (!config.isSet) return false
-        val signature = config.baseUrl + "|" + config.webKey
-        if (signature != loadedConfig) {
-            loadedConfig = signature
-            api.updateConfig(config.baseUrl, config.webKey)
+        val current = config.value
+        if (current != loadedConfig) {
+            loadedConfig = current
             quotasJob?.cancel()
             ledgerJob?.cancel()
             usageJob?.cancel()
@@ -60,40 +68,51 @@ class AppViewModel(private val settings: SettingsStore) : ViewModel() {
             ledgerVersion += 1
             usageVersion += 1
             ledgerPage.value = 0
-            quotas.value = LoadState.Loading
-            ledger.value = LoadState.Loading
-            usage.value = LoadState.Loading
+            ledgerAgent.value = null
+            ledgerProvider.value = null
+            val emptyState = if (current.isSet) LoadState.Loading else LoadState.Failed("请填写服务器地址")
+            quotas.value = emptyState
+            ledger.value = emptyState
+            usage.value = emptyState
         }
-        return true
+        return current.isSet
     }
 
     fun loadQuotas() {
-        if (quotas.value is LoadState.Loading) refreshQuotas()
+        if (ensureConfig() && quotas.value is LoadState.Loading) fetchQuotas(asked = false)
     }
 
     fun loadLedger() {
-        if (ledger.value is LoadState.Loading) refreshLedger()
+        if (ensureConfig() && ledger.value is LoadState.Loading) refreshLedger()
     }
 
     fun loadUsage() {
-        if (usage.value is LoadState.Loading) refreshUsage()
+        if (ensureConfig() && usage.value is LoadState.Loading) refreshUsage()
     }
 
-    fun refreshQuotas() {
-        if (!ensureConfig() || quotasJob?.isActive == true) return
+    fun refreshQuotas() = fetchQuotas(asked = true)
+
+    private fun fetchQuotas(asked: Boolean) {
+        if (!ensureConfig()) return
+        if (quotasJob?.isActive == true) {
+            if (!asked) return
+            quotasJob?.cancel()
+        }
+        val requestConfig = config.value
+        val api = MagpieApi(requestConfig.baseUrl, requestConfig.webKey)
         val version = ++quotasVersion
         val previous = quotas.value as? LoadState.Ready
         quotas.value = previous?.copy(refreshing = true, updateError = null) ?: LoadState.Loading
         quotasJob = viewModelScope.launch {
             try {
-                val data = api.quotas()
-                if (version == quotasVersion) {
+                val data = api.quotas(asked = asked)
+                if (ensureConfig() && requestConfig == loadedConfig && version == quotasVersion) {
                     quotas.value = LoadState.Ready(data, updatedAt = System.currentTimeMillis())
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                if (version == quotasVersion) {
+                if (ensureConfig() && requestConfig == loadedConfig && version == quotasVersion) {
                     quotas.value = previous?.copy(refreshing = false, updateError = e.friendlyMessage())
                         ?: LoadState.Failed(e.friendlyMessage())
                 }
@@ -103,26 +122,47 @@ class AppViewModel(private val settings: SettingsStore) : ViewModel() {
 
     fun refreshLedger() {
         if (!ensureConfig() || ledgerJob?.isActive == true) return
+        val requestConfig = config.value
+        val api = MagpieApi(requestConfig.baseUrl, requestConfig.webKey)
         val version = ++ledgerVersion
         val previous = ledger.value as? LoadState.Ready
+        val period = ledgerPeriod.value
+        val failed = ledgerFailedOnly.value
+        val agent = ledgerAgent.value
+        val provider = ledgerProvider.value
+        var page = ledgerPage.value
         ledger.value = previous?.copy(refreshing = true, updateError = null) ?: LoadState.Loading
         ledgerJob = viewModelScope.launch {
+            var correctedPage = false
             try {
-                val data = api.requests(
-                    period = ledgerPeriod.value,
-                    limit = LEDGER_PAGE_SIZE,
-                    offset = ledgerPage.value * LEDGER_PAGE_SIZE,
-                    failed = ledgerFailedOnly.value,
-                    agent = ledgerAgent.value,
-                )
-                if (version == ledgerVersion) {
+                repeat(2) { attempt ->
+                    val data = api.requests(
+                        period = period,
+                        limit = LEDGER_PAGE_SIZE,
+                        offset = page * LEDGER_PAGE_SIZE,
+                        failed = failed,
+                        agent = agent,
+                        provider = provider,
+                    )
+                    if (!ensureConfig() || requestConfig != loadedConfig || version != ledgerVersion) return@launch
+                    val lastPage = (data.total.coerceAtLeast(1) - 1) / LEDGER_PAGE_SIZE
+                    if (page > lastPage) {
+                        page = lastPage
+                        ledgerPage.value = page
+                        correctedPage = true
+                        ledger.value = if (attempt == 0) LoadState.Loading
+                            else LoadState.Failed("请求记录数量持续变化，请刷新重试")
+                        return@repeat
+                    }
                     ledger.value = LoadState.Ready(data, updatedAt = System.currentTimeMillis())
+                    return@launch
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                if (version == ledgerVersion) {
-                    ledger.value = previous?.copy(refreshing = false, updateError = e.friendlyMessage())
+                if (ensureConfig() && requestConfig == loadedConfig && version == ledgerVersion) {
+                    ledger.value = previous?.takeUnless { correctedPage }
+                        ?.copy(refreshing = false, updateError = e.friendlyMessage())
                         ?: LoadState.Failed(e.friendlyMessage())
                 }
             }
@@ -131,19 +171,21 @@ class AppViewModel(private val settings: SettingsStore) : ViewModel() {
 
     fun refreshUsage() {
         if (!ensureConfig() || usageJob?.isActive == true) return
+        val requestConfig = config.value
+        val api = MagpieApi(requestConfig.baseUrl, requestConfig.webKey)
         val version = ++usageVersion
         val previous = usage.value as? LoadState.Ready
         usage.value = previous?.copy(refreshing = true, updateError = null) ?: LoadState.Loading
         usageJob = viewModelScope.launch {
             try {
                 val data = api.usage(usagePeriod.value)
-                if (version == usageVersion) {
+                if (ensureConfig() && requestConfig == loadedConfig && version == usageVersion) {
                     usage.value = LoadState.Ready(data, updatedAt = System.currentTimeMillis())
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                if (version == usageVersion) {
+                if (ensureConfig() && requestConfig == loadedConfig && version == usageVersion) {
                     usage.value = previous?.copy(refreshing = false, updateError = e.friendlyMessage())
                         ?: LoadState.Failed(e.friendlyMessage())
                 }
@@ -169,6 +211,21 @@ class AppViewModel(private val settings: SettingsStore) : ViewModel() {
         restartLedger()
     }
 
+    fun setLedgerProvider(provider: String?) {
+        ledgerProvider.value = provider
+        ledgerPage.value = 0
+        restartLedger()
+    }
+
+    fun resetLedgerFilters() {
+        ledgerPeriod.value = "7d"
+        ledgerFailedOnly.value = false
+        ledgerAgent.value = null
+        ledgerProvider.value = null
+        ledgerPage.value = 0
+        restartLedger()
+    }
+
     fun previousLedgerPage() {
         if (ledgerPage.value == 0) return
         ledgerPage.value -= 1
@@ -181,23 +238,36 @@ class AppViewModel(private val settings: SettingsStore) : ViewModel() {
         restartLedger()
     }
 
+    fun setLedgerPage(page: Int, total: Int) {
+        val target = page.coerceIn(0, (total.coerceAtLeast(1) - 1) / LEDGER_PAGE_SIZE)
+        if (target == ledgerPage.value) return
+        ledgerPage.value = target
+        restartLedger()
+    }
+
     private fun restartLedger() {
         ledgerPage.value = ledgerPage.value.coerceAtLeast(0)
+        ledgerVersion += 1
         ledgerJob?.cancel()
+        ledger.value = LoadState.Loading
         refreshLedger()
     }
 
     fun setUsagePeriod(period: String) {
         usagePeriod.value = period
+        usageVersion += 1
         usageJob?.cancel()
+        usage.value = LoadState.Loading
         refreshUsage()
     }
 
     suspend fun testConnection(baseUrl: String, webKey: String): String {
-        if (baseUrl.isBlank()) return "请填写服务器地址"
         return try {
-            MagpieApi(baseUrl, webKey).quotas()
-            "连接成功，Magpie 数据可读取"
+            val config = normalizedServerConfig(baseUrl, webKey)
+            MagpieApi(config.baseUrl, config.webKey).quotas()
+            "连接成功，额度接口通过"
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             e.friendlyMessage()
         }
@@ -210,6 +280,6 @@ class AppViewModel(private val settings: SettingsStore) : ViewModel() {
     }
 
     companion object {
-        const val LEDGER_PAGE_SIZE = 5
+        const val LEDGER_PAGE_SIZE = 20
     }
 }

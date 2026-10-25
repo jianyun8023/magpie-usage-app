@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -26,6 +27,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -39,12 +44,12 @@ import com.jianyun.x2app.ui.SettingsScreen
 import com.jianyun.x2app.ui.UsageScreen
 import com.jianyun.x2app.ui.inkClickable
 
-enum class Tab(val label: String) { QUOTAS("额度"), LEDGER("请求"), USAGE("汇总") }
+enum class Tab(val label: String) { QUOTAS("额度"), LEDGER("流水"), USAGE("用量") }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val settings = SettingsStore(this)
+        val settings = SettingsStore.get(this)
         setContent { App(settings) }
     }
 }
@@ -65,6 +70,7 @@ fun App(settings: SettingsStore) {
     val ledgerPeriod by vm.ledgerPeriod.collectAsState()
     val ledgerFailedOnly by vm.ledgerFailedOnly.collectAsState()
     val ledgerAgent by vm.ledgerAgent.collectAsState()
+    val ledgerProvider by vm.ledgerProvider.collectAsState()
     val ledgerPage by vm.ledgerPage.collectAsState()
     val usagePeriod by vm.usagePeriod.collectAsState()
 
@@ -99,7 +105,7 @@ fun App(settings: SettingsStore) {
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            if (showSettings) "设置" else "Magpie 用量",
+                            if (showSettings || !config.isSet) "设置" else "Magpie ${tab.label}",
                             fontSize = 22.sp,
                             fontWeight = FontWeight.Bold,
                             color = Ink.fg,
@@ -124,10 +130,14 @@ fun App(settings: SettingsStore) {
                 if (!showSettings && config.isSet) {
                     Column {
                         HorizontalDivider(color = Ink.fg, thickness = 1.dp)
-                        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                        Row(Modifier.fillMaxWidth().selectableGroup().padding(horizontal = 16.dp, vertical = 8.dp)) {
                             Tab.entries.forEach { item ->
                                 Box(
                                     Modifier.weight(1f).defaultMinSize(minHeight = 52.dp)
+                                        .semantics {
+                                            role = Role.Tab
+                                            selected = tab == item
+                                        }
                                         .inkClickable { tabName = item.name },
                                     contentAlignment = Alignment.Center,
                                 ) {
@@ -165,12 +175,16 @@ fun App(settings: SettingsStore) {
                         period = ledgerPeriod,
                         failedOnly = ledgerFailedOnly,
                         agent = ledgerAgent,
+                        provider = ledgerProvider,
                         page = ledgerPage,
                         onPeriod = vm::setLedgerPeriod,
                         onToggleFailed = vm::toggleFailedOnly,
                         onAgent = vm::setLedgerAgent,
+                        onProvider = vm::setLedgerProvider,
+                        onResetFilters = vm::resetLedgerFilters,
                         onPrevious = vm::previousLedgerPage,
                         onNext = vm::nextLedgerPage,
+                        onPage = vm::setLedgerPage,
                         onRefresh = vm::refreshLedger,
                     )
                     tab == Tab.USAGE -> UsageScreen(

@@ -29,6 +29,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jianyun.x2app.data.ServerConfig
+import com.jianyun.x2app.data.normalizedServerConfig
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 @Composable
@@ -41,6 +43,7 @@ fun SettingsScreen(
     var key by remember(config) { mutableStateOf(config.webKey) }
     var testing by remember { mutableStateOf(false) }
     var testResult by remember { mutableStateOf<String?>(null) }
+    var validationError by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val fieldColors = OutlinedTextFieldDefaults.colors(
         focusedBorderColor = Ink.fg,
@@ -67,18 +70,19 @@ fun SettingsScreen(
         )
         OutlinedTextField(
             value = url,
-            onValueChange = { url = it; testResult = null },
-            label = { Text("地址，如 192.168.2.174:3430") },
+            onValueChange = { url = it; testResult = null; validationError = null },
+            label = { Text("地址，如 192.0.2.10:3430") },
             modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 56.dp),
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
             shape = RectangleShape,
             colors = fieldColors,
             enabled = !testing,
+            isError = validationError != null,
         )
         OutlinedTextField(
             value = key,
-            onValueChange = { key = it; testResult = null },
+            onValueChange = { key = it; testResult = null; validationError = null },
             label = { Text("MAGPIE_WEB_KEY") },
             modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 56.dp),
             singleLine = true,
@@ -94,26 +98,45 @@ fun SettingsScreen(
                     scope.launch {
                         testing = true
                         try {
-                            testResult = onTest(url.trim(), key)
+                            val normalized = normalizedServerConfig(url, key)
+                            validationError = null
+                            testResult = onTest(normalized.baseUrl, normalized.webKey)
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: IllegalArgumentException) {
+                            testResult = null
+                            validationError = e.message
+                        } catch (_: Exception) {
+                            testResult = "连接测试失败，请检查网络与服务器设置后重试"
                         } finally {
                             testing = false
                         }
                     }
                 },
                 Modifier.weight(1f),
-                enabled = url.isNotBlank() && !testing,
+                enabled = !testing,
             )
             InkButton(
                 "保存",
-                { onSave(url, key) },
+                {
+                    try {
+                        val normalized = normalizedServerConfig(url, key)
+                        validationError = null
+                        onSave(normalized.baseUrl, normalized.webKey)
+                    } catch (e: IllegalArgumentException) {
+                        testResult = null
+                        validationError = e.message
+                    }
+                },
                 Modifier.weight(1f),
                 selected = true,
-                enabled = url.isNotBlank() && !testing,
+                enabled = !testing,
             )
         }
+        validationError?.let { Text(it, color = Ink.danger) }
         testResult?.let {
             Text(
-                (if (it.startsWith("连接成功")) "成功：" else "失败：") + it,
+                it,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
                 color = Ink.fg,
@@ -121,6 +144,8 @@ fun SettingsScreen(
             )
         }
         Spacer(Modifier.height(4.dp))
+        HorizontalDivider(color = Ink.fg)
+        NetworkSettings()
         HorizontalDivider(color = Ink.fg)
         Text("关于", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Ink.fg)
         Text(

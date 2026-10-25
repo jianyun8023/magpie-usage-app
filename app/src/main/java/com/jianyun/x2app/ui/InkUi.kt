@@ -21,8 +21,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.text.SimpleDateFormat
@@ -60,6 +65,10 @@ fun InkButton(
             .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
             .border(1.dp, if (enabled) Ink.fg else Ink.line)
             .background(if (selected && enabled) Ink.fg else Ink.bg)
+            .semantics {
+                role = Role.Button
+                this.selected = selected
+            }
             .inkClickable(enabled, onClick)
             .padding(horizontal = 14.dp, vertical = 10.dp),
         contentAlignment = Alignment.Center,
@@ -70,6 +79,7 @@ fun InkButton(
             fontSize = 14.sp,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
             maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }

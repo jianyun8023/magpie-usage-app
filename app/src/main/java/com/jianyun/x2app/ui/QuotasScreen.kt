@@ -1,6 +1,8 @@
 package com.jianyun.x2app.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
@@ -19,6 +21,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,8 +32,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -53,7 +54,7 @@ fun QuotasScreen(
     when (state) {
         is LoadState.Loading -> LoadingBox()
         is LoadState.Failed -> ErrorBox(state.message, onRefresh)
-        is LoadState.Ready -> QuotasBody(state, ignoredIds, onToggleIgnored, onRefresh)
+        is LoadState.Ready -> QuotasBody(state, ignoredIds, onToggleIgnored)
     }
 }
 
@@ -62,12 +63,19 @@ private fun QuotasBody(
     state: LoadState.Ready<List<QuotaCard>>,
     ignoredIds: Set<String>,
     onToggleIgnored: (String, Boolean) -> Unit,
-    onRefresh: () -> Unit,
 ) {
     var page by rememberSaveable { mutableStateOf(0) }
     var managing by rememberSaveable { mutableStateOf(false) }
+    var openedId by rememberSaveable { mutableStateOf<String?>(null) }
     val sortedData = sortedQuotaCards(state.data)
+    val opened = sortedData.firstOrNull { quotaId(it) == openedId }
+    if (opened != null) {
+        BackHandler { openedId = null }
+        QuotaDetails(opened) { openedId = null }
+        return
+    }
     if (managing) {
+        BackHandler { managing = false }
         QuotaManager(sortedData, ignoredIds, onToggleIgnored) { managing = false }
         return
     }
@@ -109,20 +117,22 @@ private fun QuotasBody(
             val visible = visibleData.drop(safePage * perPage).take(perPage)
             Column(Modifier.fillMaxSize()) {
                 Column(
-                    Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    Modifier.weight(1f).fillMaxWidth()
+                        .verticalScroll(remember(safePage) { ScrollState(0) })
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     val rowData = visible.chunked(columns)
                     rowData.forEach { rowCards ->
                         Row(
-                            Modifier.weight(1f).fillMaxWidth(),
+                            Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
                             rowCards.forEach { card ->
                                 QuotaCardItem(
                                     card = card,
-                                    modifier = Modifier.weight(1f).fillMaxHeight(),
-                                    onRefresh = onRefresh,
+                                    modifier = Modifier.weight(1f),
+                                    onOpen = { openedId = quotaId(card) },
                                     onHide = { onToggleIgnored(quotaId(card), true) },
                                 )
                             }
@@ -130,9 +140,6 @@ private fun QuotasBody(
                                 Spacer(Modifier.weight(1f))
                             }
                         }
-                    }
-                    repeat(rows - rowData.size) {
-                        Spacer(Modifier.weight(1f))
                     }
                 }
                 if (pageCount > 1) {
@@ -210,7 +217,7 @@ private fun quotaDisplayTitle(card: QuotaCard): String =
     }
 
 fun windowsShown(card: QuotaCard): List<QuotaWindow> {
-    val seen = LinkedHashMap<String, QuotaWindow>()
+    val seen = LinkedHashMap<List<Any?>, QuotaWindow>()
     for (window in card.windows) {
         val key = listOf(
             window.pool ?: window.name,
@@ -222,18 +229,23 @@ fun windowsShown(card: QuotaCard): List<QuotaWindow> {
             window.amount,
             window.limit,
             window.unlimited,
-        ).joinToString("\u001F")
+            window.holds,
+            window.holdsWhy,
+        )
         if (key !in seen) seen[key] = window
     }
     return seen.values.toList()
 }
+
+internal fun summaryWindows(card: QuotaCard): List<QuotaWindow> =
+    windowsShown(card).sortedBy { if (it.unlimited == true) 101 else remainingPercent(it) ?: 101 }.take(2)
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun QuotaCardItem(
     card: QuotaCard,
     modifier: Modifier = Modifier,
-    onRefresh: () -> Unit,
+    onOpen: () -> Unit,
     onHide: () -> Unit,
 ) {
     var showActions by remember { mutableStateOf(false) }
@@ -244,12 +256,13 @@ fun QuotaCardItem(
             .combinedClickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
-                onClick = {},
+                onClickLabel = "查看完整额度",
+                onClick = onOpen,
                 onLongClick = { showActions = true },
             )
     ) {
         Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp),
+            Modifier.fillMaxWidth().padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -262,14 +275,6 @@ fun QuotaCardItem(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
-                Box(
-                    Modifier.defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
-                        .semantics { contentDescription = "刷新 ${quotaDisplayTitle(card)}" }
-                        .inkClickable(onClick = onRefresh),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text("↻", fontSize = 24.sp, color = Ink.fg)
-                }
                 Text(
                     when {
                         card.hasError -> "! 不可达"
@@ -291,7 +296,8 @@ fun QuotaCardItem(
                 Text(subtitle, fontSize = 13.sp, color = Ink.fgSoft, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
             when {
-                card.hasError -> Text(card.error ?: "未知错误", fontSize = 14.sp, color = Ink.fg)
+                card.hasError -> Text(card.error ?: "未知错误", fontSize = 14.sp, color = Ink.fg,
+                    maxLines = 3, overflow = TextOverflow.Ellipsis)
                 card.isBalance -> {
                     Text("剩余", fontSize = 13.sp, color = Ink.fgSoft)
                     Text(card.balance ?: "—", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = Ink.fg)
@@ -304,17 +310,25 @@ fun QuotaCardItem(
                     }
                 }
                 else -> {
-                    val windows = windowsShown(card).sortedBy { remainingPercent(it) ?: 101 }
+                    val windows = summaryWindows(card)
                     if (windows.isEmpty()) Text("暂无额度窗口", fontSize = 14.sp, color = Ink.fgSoft)
-                    windows.forEach { WindowRow(it) }
+                    windows.forEach { window ->
+                        WindowRow(window, summary = true)
+                    }
                 }
             }
             card.until?.let {
                 Text("到期 ${fmtReset(it)}", fontSize = 12.sp, color = Ink.fgSoft)
             }
-            card.readAt?.let {
-                Text("读取 ${fmtReset(it)}", fontSize = 12.sp, color = Ink.fgSoft)
+            val windowCount = windowsShown(card).size
+            val lowCount = windowsShown(card).count {
+                it.unlimited != true && (remainingPercent(it)?.let { percent -> percent <= 10 } == true)
             }
+            if (lowCount > 2) Text("共 $lowCount 个窗口额度偏低", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Text(
+                if (windowCount > 0) "完整详情 · 共 $windowCount 个额度窗口 ›" else "查看完整额度 ›",
+                Modifier.padding(top = 4.dp), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Ink.fg,
+            )
         }
         if (showActions) {
             androidx.compose.ui.window.Popup(
@@ -341,29 +355,131 @@ fun QuotaCardItem(
 }
 
 @Composable
-fun WindowRow(window: QuotaWindow) {
+private fun QuotaDetails(card: QuotaCard, onClose: () -> Unit) {
+    var diagnosticsExpanded by rememberSaveable(quotaId(card)) { mutableStateOf(false) }
+    Column(Modifier.fillMaxSize().background(Ink.bg)) {
+        Row(
+            Modifier.fillMaxWidth().padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            InkButton("返回", onClose)
+            Text(quotaDisplayTitle(card), Modifier.weight(1f), fontSize = 20.sp,
+                fontWeight = FontWeight.Bold, color = Ink.fg)
+        }
+        SelectionContainer(Modifier.weight(1f).fillMaxWidth()) {
+            Column(
+                Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    val overview = listOfNotNull(card.from, card.plan, card.user)
+                        .filter { it.isNotBlank() && it != quotaDisplayTitle(card) }.distinct()
+                    overview.forEach { Text(it, fontSize = 16.sp, color = Ink.fgSoft) }
+                    card.error?.let {
+                        Text(it, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Ink.fg)
+                    }
+                    if (card.isBalance || card.balance != null) {
+                        Text(card.balance ?: "—", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = Ink.fg)
+                    }
+                    card.balanceSplit.forEach {
+                        Text("${it.label} ${it.text}", fontSize = 16.sp, color = Ink.fg)
+                    }
+                    card.until?.let { Text("到期 ${fmtReset(it)}", fontSize = 14.sp, color = Ink.fgSoft) }
+                    card.readAt?.let { Text("读取 ${fmtReset(it)}", fontSize = 14.sp, color = Ink.fgSoft) }
+                }
+                val windows = windowsShown(card).sortedBy {
+                    if (it.unlimited == true) 101 else remainingPercent(it) ?: 101
+                }
+                if (windows.isEmpty() && !card.isBalance) {
+                    Text("暂无额度窗口", fontSize = 16.sp, color = Ink.fgSoft)
+                }
+                windows.forEach { window ->
+                    Column(Modifier.fillMaxWidth().border(1.dp, Ink.line).padding(16.dp)) {
+                        WindowRow(window)
+                    }
+                }
+                InkButton(
+                    if (diagnosticsExpanded) "收起原始数据" else "原始数据",
+                    { diagnosticsExpanded = !diagnosticsExpanded },
+                )
+                if (diagnosticsExpanded) {
+                    Text(quotaDetailText(card), fontSize = 14.sp, lineHeight = 22.sp, color = Ink.fgSoft)
+                }
+            }
+        }
+    }
+}
+
+// Keep original windows and timestamps here: aliases and precision can matter when copying details.
+internal fun quotaDetailText(card: QuotaCard): String = buildList {
+    add(quotaDisplayTitle(card))
+    add("提供方：${card.provider}")
+    add("名称：${card.name}")
+    card.icon?.let { add("图标：$it") }
+    card.kind?.let { add("类型：$it") }
+    card.from?.let { add("来源：$it") }
+    card.plan?.let { add("计划：$it") }
+    card.user?.let { add("账户：$it") }
+    card.error?.let { add("错误：$it") }
+    card.balance?.let { add("余额：$it") }
+    card.balanceSplit.forEach { add("${it.label}：${it.text}") }
+    card.until?.let { add("到期：$it") }
+    card.readAt?.let { add("读取：$it") }
+    if (card.windows.isEmpty() && !card.isBalance) add("暂无额度窗口")
+    card.windows.forEach { window ->
+        add("")
+        add("名称：${window.name}")
+        window.pool?.let { add("额度池：$it") }
+        window.unlimited?.let { add("不限量：${if (it) "是" else "否"}") }
+        if (window.unlimited == true) add("不限量")
+        else remainingPercent(window)?.let { add("剩余 $it%" + if (it <= 10) " · 额度偏低" else "") }
+        window.display?.let { add(it) }
+        window.used?.let { add("已用比例：$it%") }
+        window.remaining?.let { add("剩余额度：$it") }
+        window.amount?.let { add("已用额度：$it") }
+        window.limit?.let { add("额度上限：$it") }
+        window.startsAt?.let { add("开始：$it") }
+        window.resetsAt?.let { add("重置：$it") }
+        window.holds?.let {
+            add("整窗容量估算 Token：${it.tokens}")
+            add("整窗 API 标价估算原值：${it.cost}")
+            add("API 标价估算可用：${if (it.priced) "是" else "否"}")
+            add("估算依据已用比例：${it.used}%")
+        }
+        window.holdsWhy?.let { add("无法估算整窗容量：${capacityEstimateReason(it)}（$it）") }
+    }
+}.joinToString("\n")
+
+@Composable
+fun WindowRow(window: QuotaWindow, summary: Boolean = false) {
     val remainingPct = remainingPercent(window)
     val low = remainingPct != null && remainingPct <= 10
+    val title = window.pool?.takeIf { it.isNotBlank() } ?: window.name.ifBlank { "未命名窗口" }
+    val value = when {
+        window.unlimited == true -> "不限量"
+        remainingPct != null -> "剩 $remainingPct%" + if (low) " 偏低" else ""
+        else -> window.remaining?.let { "剩余 ${formatAmount(it)}" } ?: window.display ?: "—"
+    }
     Column(Modifier.fillMaxWidth()) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                window.pool ?: window.name,
-                fontSize = 14.sp,
-                color = Ink.fg,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f).padding(end = 8.dp),
-            )
-            Text(
-                when {
-                    window.unlimited == true -> "不限量"
-                    remainingPct != null -> "剩 $remainingPct%" + if (low) " 偏低" else ""
-                    else -> window.display ?: window.remaining?.let { "剩余 ${formatAmount(it)}" } ?: "—"
-                },
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                color = Ink.fg,
-            )
+        if (!summary) {
+            Text(title, fontSize = 16.sp, color = Ink.fg, fontWeight = FontWeight.Bold)
+            Text(value, fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Ink.fg)
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    title,
+                    fontSize = 14.sp,
+                    color = Ink.fg,
+                    modifier = Modifier.weight(1f).padding(end = 8.dp),
+                )
+                Text(
+                    value,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Ink.fg,
+                )
+            }
         }
         if (window.unlimited != true && remainingPct != null) {
             Spacer(Modifier.height(4.dp))
@@ -373,30 +489,58 @@ fun WindowRow(window: QuotaWindow) {
                 )
             }
         }
-        val amountDetails = window.amount?.let { amount ->
-            window.limit?.let { limit -> "${formatAmount(amount)} / ${formatAmount(limit)}" }
+        if (summary) {
+            window.resetsAt?.let {
+                Text("重置 ${fmtReset(it)}", fontSize = 12.sp, color = Ink.fgSoft)
+            }
+            return@Column
         }
-        val details = listOfNotNull(
-            window.display?.takeIf { it.isNotBlank() } ?: amountDetails,
+        val details = (windowAmountDetails(window).filter { it != value } + listOfNotNull(
             window.startsAt?.let { "开始 ${fmtReset(it)}" },
             window.resetsAt?.let { "重置 ${fmtReset(it)}" },
-        ).joinToString(" · ")
+        )).distinct().joinToString("\n")
         if (details.isNotEmpty()) {
-            Text(details, fontSize = 12.sp, color = Ink.fgSoft, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(details, fontSize = 14.sp, color = Ink.fgSoft)
         }
-        val holdsDetails = buildList {
-            window.holds?.let { holds ->
-                if (holds.tokens > 0) add("占用 ${formatAmount(holds.tokens)} Token")
-                if (holds.cost > 0) add("占用费用 $%.2f".format(holds.cost))
-            }
-            window.holdsWhy?.takeIf { it.isNotBlank() }?.let { reason ->
-                add(if (reason.equals("low", ignoreCase = true)) "额度偏低" else reason)
-            }
-        }.joinToString(" · ")
+        val holdsDetails = capacityEstimateText(window)
         if (holdsDetails.isNotEmpty()) {
-            Text(holdsDetails, fontSize = 12.sp, color = Ink.fgSoft, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(holdsDetails, fontSize = 14.sp, color = Ink.fgSoft)
         }
     }
+}
+
+internal fun windowAmountDetails(window: QuotaWindow): List<String> {
+    val amountDetails = when {
+        window.amount != null && window.limit != null -> "已用 ${formatAmount(window.amount)} / ${formatAmount(window.limit)}"
+        window.amount != null -> "已用 ${formatAmount(window.amount)}"
+        window.limit != null -> "上限 ${formatAmount(window.limit)}"
+        else -> null
+    }
+    val display = window.display?.takeIf { it.isNotBlank() }
+    val pair = display?.split('/')?.map { it.trim().replace(",", "").toDoubleOrNull() }
+    val repeatsAmount = window.amount != null && window.limit != null &&
+        pair?.size == 2 && pair[0] == window.amount && pair[1] == window.limit
+    return listOfNotNull(display?.takeUnless { repeatsAmount }, amountDetails).distinct()
+}
+
+// provider/window_holds.go: holds estimates the whole allowance; low means <5% used.
+internal fun capacityEstimateReason(reason: String): String = when (reason.lowercase()) {
+    "low" -> "估算样本不足（已用比例不足 5%）"
+    "clock" -> "窗口起止时间未知"
+    "log" -> "请求日志未覆盖整个窗口"
+    "none" -> "窗口内暂无经 Magpie 转发的调用"
+    "credits" -> "部分调用可能使用额外余额支付"
+    else -> reason
+}
+
+internal fun capacityEstimateText(window: QuotaWindow): String {
+    window.holds?.let { holds ->
+        return "整窗约 ${formatAmount(holds.tokens)} Token" +
+            if (holds.priced) " · API 标价约 $${formatAmount(holds.cost)}" else ""
+    }
+    return window.holdsWhy?.takeIf { it.isNotBlank() && it != "-" }?.let {
+        "整窗容量暂无法估算 · ${capacityEstimateReason(it)}"
+    }.orEmpty()
 }
 
 private fun remainingPercent(window: QuotaWindow): Int? {
@@ -413,7 +557,8 @@ private fun remainingPercent(window: QuotaWindow): Int? {
 }
 
 private fun formatAmount(value: Double): String =
-    if (value % 1.0 == 0.0) value.toLong().toString() else "%.2f".format(value)
+    if (value % 1.0 == 0.0) String.format(java.util.Locale.US, "%,.0f", value)
+    else String.format(java.util.Locale.US, "%,.2f", value)
 
 private val quotaTimeFormat = DateTimeFormatter.ofPattern("MM-dd HH:mm")
 

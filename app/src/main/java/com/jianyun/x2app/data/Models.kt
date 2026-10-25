@@ -98,8 +98,12 @@ data class RequestRow(
     val ep: String? = null,
     val session: String? = null,
     val access: String? = null,
+    val source: String? = null,
+    val tries: Int? = null,
+    @SerialName("handed_on") val handedOn: Boolean = false,
 ) {
-    val ok: Boolean get() = status in 200..299
+    val failed: Boolean get() = status >= 400 || !err.isNullOrEmpty()
+    val ok: Boolean get() = status in 200..299 && !failed
 }
 
 // GET /api/usage —— 用量汇总
