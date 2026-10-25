@@ -18,9 +18,21 @@ android {
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
     }
 
+    val releaseStore = System.getenv("RELEASE_KEYSTORE_PATH")
+    signingConfigs {
+        if (releaseStore != null) {
+            create("distribution") {
+                storeFile = file(releaseStore)
+                storePassword = System.getenv("RELEASE_KEYSTORE_PASSWORD")
+                keyAlias = "magpie-release"
+                keyPassword = System.getenv("RELEASE_KEYSTORE_PASSWORD")
+            }
+        }
+    }
     buildTypes {
         release {
             isMinifyEnabled = false
+            if (releaseStore != null) signingConfig = signingConfigs.getByName("distribution")
         }
     }
     compileOptions {

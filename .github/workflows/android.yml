@@ -1,0 +1,86 @@
+name: Android
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+      - name: Verify native library
+        run: sha256sum --check third_party/tailscale/SHA256SUMS
+      - name: Build, test and lint
+        run: ./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug --no-daemon
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: android-check-results
+          path: |
+            app/build/outputs/apk/debug/*.apk
+            app/build/reports/
+          retention-days: 14
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+      - name: Verify version and native library
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version=$(sed -n 's/.*versionName = "\([^"]*\)".*/\1/p' app/build.gradle.kts)
+          test "$TAG" = "v$version"
+          sha256sum --check third_party/tailscale/SHA256SUMS
+      - name: Build signed release
+        env:
+          KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEYSTORE_PATH: ${{ runner.temp }}/release.jks
+        run: |
+          umask 077
+          trap 'rm -f "$RELEASE_KEYSTORE_PATH"' EXIT
+          test -n "$KEYSTORE_BASE64"
+          test -n "$RELEASE_KEYSTORE_PASSWORD"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RELEASE_KEYSTORE_PATH"
+          ./gradlew :app:assembleRelease --no-daemon
+      - name: Verify APK and prepare assets
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose app/build/outputs/apk/release/app-release.apk
+          mkdir dist
+          cp app/build/outputs/apk/release/app-release.apk "dist/magpie-usage-app-$TAG.apk"
+          cd dist
+          sha256sum *.apk > SHA256SUMS
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG" dist/* --verify-tag --title "Magpie 用量 $TAG" --notes-file RELEASE_NOTES.md

@@ -61,17 +61,27 @@ class UsageScreenTest {
     fun overviewAndGroupsUseSharedTokenFormattingAndKeepZeroMetrics() {
         val usage = UsageSummary(input = 1_454_300_000, cacheWrite = 123, reasoning = 45)
         val totals = overviewMetrics(usage).associate { it.label to it.value }
-        assertEquals(8, totals.size)
+        assertEquals(9, totals.size)
         assertEquals(fmtNum(usage.input), totals["输入 Token"])
         assertEquals("123", totals["缓存写入 Token"])
         assertEquals("45", totals["推理 Token"])
         val group = UsageSummary.UsageGroup(input = usage.input, cacheRead = 200)
         val metrics = groupMetrics(group).associate { it.label to it.value }
-        assertEquals(6, metrics.size)
+        assertEquals(7, metrics.size)
         assertEquals(fmtNum(group.input), metrics["输入 Token"])
         assertEquals("200", metrics["缓存读取 Token"])
         assertEquals("0", metrics["错误"])
         assertEquals("$0.00", metrics["费用"])
+    }
+
+    @Test
+    fun totalTokensUseInputAndOutputWithoutAddingCacheOrReasoning() {
+        val usage = UsageSummary(input = 120, output = 30, cacheRead = 400, cacheWrite = 50, reasoning = 20)
+        assertEquals("150", overviewMetrics(usage).single { it.label == "总计 Token" }.value)
+        val group = UsageSummary.UsageGroup(input = 120, output = 30, cacheRead = 400)
+        assertEquals("150", groupMetrics(group).single { it.label == "总计 Token" }.value)
+        assertEquals("0", overviewMetrics(UsageSummary()).single { it.label == "总计 Token" }.value)
+        assertEquals("0", groupMetrics(UsageSummary.UsageGroup()).single { it.label == "总计 Token" }.value)
     }
 
     @Test
