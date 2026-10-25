@@ -34,14 +34,14 @@ magpie web --lan
 
 客户端访问 `/api/usage`、`/api/usage/quotas` 和 `/api/usage/requests`。服务端须提供这些接口；出现 404 时检查地址和 Magpie 版本。Web Key 是服务访问凭据，不是模型提供商的 API Key。HTTP 不加密传输，远程访问应使用受信任的 HTTPS 或 VPN。
 
-### 内置 VPN
+### 应用内网络
 
-在「服务器设置 → 网络接入」中选择一种方式，并接受 Android 的 VPN 授权：
+在「服务器设置 → 网络接入」中选择直连、WireGuard 或 Tailscale。WireGuard 和 Tailscale 仅承载本应用的服务请求，不创建 Android 系统 VPN，也不改变其他应用的网络。
 
 - **WireGuard**：导入 `.conf` 后连接；访问范围由配置中的 `AllowedIPs` 等路由设置决定。
-- **Tailscale**：控制服务器留空使用官方服务；连接 Headscale 时填写其控制服务器 URL，保存并按授权页面完成登录。更换控制服务器会断开并退出当前账号。
+- **Tailscale**：控制服务器留空使用官方服务；连接 Headscale 时填写其控制服务器 URL，保存并按授权页面完成登录。服务地址支持 Tailnet IP 与网络内的 MagicDNS 名称；未知域名不会回落系统 DNS。更换控制服务器会断开并退出当前账号。
 
-WireGuard 与 Tailscale 互斥，切换时会先断开另一种。内置引擎不需要另装对应 VPN 客户端，但仍需可用的服务端和授权。连接状态不等于 Magpie 服务可达，连接后仍需测试服务器地址。
+WireGuard 与 Tailscale 互斥，切换时会先断开另一种。选择的应用内连接断开或失败时，请求会报错；如需直接访问，须明确选择「直连」。内置引擎不需要另装对应客户端，但仍需可用的服务端和账号授权。连接状态不等于 Magpie 服务可达，连接后仍需测试服务器地址。连接随应用进程存活，冷启动后需手动重连。
 
 ## 构建与测试
 
@@ -74,18 +74,18 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 该测试使用本机回环 HTTP 服务，真实重建 Activity，确认保留的 ViewModel 使用更新后的地址和 Cookie，并在结束时恢复原有服务器与隐藏额度配置。
 
-仓库包含 `app/libs/libtailscale.aar`，普通 APK 构建无需重编 Go 引擎。原生库来源、固定版本、构建脚本和第三方声明见 [third_party/tailscale](third_party/tailscale/README.md)；上游为 [tailscale-android](https://github.com/tailscale/tailscale-android) 和 [tailscale](https://github.com/tailscale/tailscale)。
+仓库包含 `app/libs/libappnet.aar`，普通 APK 构建无需重编 Go 引擎。引擎使用 WireGuard 用户态网络栈与 Tailscale `tsnet`。原生库来源、固定版本、构建脚本和第三方声明见 [third_party/appnet](third_party/appnet/README.md)。
 
 ## 验证与已知限制
 
-目前通过 97 项单元测试与 1 项 Activity 重建回归测试。真机 UI 在 Note X2、Android 11、字体缩放 1.15 下检查；已验证 WireGuard 加密隧道访问、Headscale IP / MagicDNS 访问、两种 VPN 双向切换，以及 App 冷启动后手动重连。
+目前通过 91 项 Kotlin 单元测试、17 项 Go 测试（含竞态检查），Debug / Release 构建和 lint 检查均通过（lint 无错误，仍有 16 项警告）。Note X2 / Android 11 真机通过 5 项测试：WireGuard 加密 HTTP 与断开后不回落直连、Headscale IP / MagicDNS HTTP 与断开后身份复用、无系统 VPN 服务声明、加密状态存储、Activity 重建时配置更新与恢复。真机 UI 按字体缩放 1.15 检查。
 
-- 官方 Tailscale 账号登录尚未实测；其他设备、ROM 和字体缩放仍需验证。未验证常驻 VPN、开机自动连接或系统杀进程后的自动恢复。
+- 官方 Tailscale 已在真机确认登录、子网访问及身份复用重连；应用进程启动时会自动恢复已选择的 Tailscale，但不提供设备开机后的后台自启。其他设备、ROM 和字体缩放仍需验证。
 - **Magpie Web Key 目前存于普通 SharedPreferences，未加密，且未从系统备份中排除。** VPN 配置的加密存储不代表所有凭据都已加密。
 - HTTP 默认端口 80 的 Cookie 名构造仍有已知问题；当前请使用显式非默认端口，例如 `3430`。
 - 部分 ROM 会在崩溃后禁用测试包，造成测试关闭时的 `EmptyActivity` 异常。若确认测试包被禁用，可执行 `adb shell pm enable com.jianyun.x2app.test` 后重跑。
 
-项目目前未声明仓库级开源许可证；第三方组件按各自许可证使用，其声明见 [Tailscale 第三方目录](third_party/tailscale/README.md)。
+项目目前未声明仓库级开源许可证；第三方组件按各自许可证使用，其声明见 [应用内网络第三方目录](third_party/appnet/README.md)。
 
 ## CI 与发布
 

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
@@ -33,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -51,10 +53,15 @@ fun QuotasScreen(
     onToggleIgnored: (String, Boolean) -> Unit,
     onRefresh: () -> Unit,
 ) {
-    when (state) {
-        is LoadState.Loading -> LoadingBox()
-        is LoadState.Failed -> ErrorBox(state.message, onRefresh)
-        is LoadState.Ready -> QuotasBody(state, ignoredIds, onToggleIgnored)
+    Column(Modifier.fillMaxSize()) {
+        DataStatus(state)
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            when (state) {
+                is LoadState.Loading -> LoadingBox()
+                is LoadState.Failed -> ErrorBox(state.message, onRefresh)
+                is LoadState.Ready -> QuotasBody(state, ignoredIds, onToggleIgnored)
+            }
+        }
     }
 }
 
@@ -82,7 +89,6 @@ private fun QuotasBody(
     val visibleData = sortedData.filterNot { quotaId(it) in ignoredIds }
     val ignoredCount = sortedData.count { quotaId(it) in ignoredIds }
     Column(Modifier.fillMaxSize()) {
-        DataStatus(state)
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -125,13 +131,13 @@ private fun QuotasBody(
                     val rowData = visible.chunked(columns)
                     rowData.forEach { rowCards ->
                         Row(
-                            Modifier.fillMaxWidth(),
+                            Modifier.fillMaxWidth().height(IntrinsicSize.Min),
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
                             rowCards.forEach { card ->
                                 QuotaCardItem(
                                     card = card,
-                                    modifier = Modifier.weight(1f),
+                                    modifier = Modifier.weight(1f).fillMaxHeight(),
                                     onOpen = { openedId = quotaId(card) },
                                     onHide = { onToggleIgnored(quotaId(card), true) },
                                 )
@@ -240,6 +246,42 @@ fun windowsShown(card: QuotaCard): List<QuotaWindow> {
 internal fun summaryWindows(card: QuotaCard): List<QuotaWindow> =
     windowsShown(card).sortedBy { if (it.unlimited == true) 101 else remainingPercent(it) ?: 101 }.take(2)
 
+internal fun balanceSplitLabel(label: String): String = when (label.trim().lowercase()) {
+    "granted" -> "赠送"
+    "topped up", "topped-up" -> "充值"
+    else -> label
+}
+
+internal fun quotaResetSummaryLines(card: QuotaCard): List<String> {
+    if (card.hasError) return emptyList()
+    val resets = card.resets ?: return emptyList()
+    return buildList {
+        if (resets.byWindow) {
+            val counts = listOfNotNull(
+                resets.fiveHour?.takeIf { it >= 0 }?.let { "5小时重置 $it 次" },
+                resets.weekly?.takeIf { it >= 0 }?.let { "每周重置 $it 次" },
+            )
+            if (counts.isNotEmpty()) add(counts.joinToString(" / "))
+        } else {
+            resets.count?.takeIf { it >= 0 }?.let { add("可用重置 $it 次") }
+        }
+        resets.until?.takeIf { it.isNotBlank() }?.let { add("重置额度最早到期 ${fmtReset(it)}") }
+    }
+}
+
+internal fun quotaResetEachLines(card: QuotaCard): List<String> {
+    if (card.hasError) return emptyList()
+    return card.resets?.each.orEmpty().mapNotNull { reset ->
+        reset.until?.takeIf { it.isNotBlank() }?.let { until ->
+            when (reset.window) {
+                "fiveHour" -> "5小时重置额度到期 ${fmtReset(until)}"
+                "weekly" -> "每周重置额度到期 ${fmtReset(until)}"
+                else -> "重置额度到期 ${fmtReset(until)}"
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun QuotaCardItem(
@@ -262,7 +304,7 @@ fun QuotaCardItem(
             )
     ) {
         Column(
-            Modifier.fillMaxWidth().padding(12.dp),
+            Modifier.fillMaxHeight().padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -275,17 +317,18 @@ fun QuotaCardItem(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
-                Text(
-                    when {
-                        card.hasError -> "! 不可达"
-                        card.isBalance -> "余额"
-                        card.kind == "plan" -> "计划"
-                        else -> "订阅"
-                    },
-                    fontSize = 13.sp,
-                    fontWeight = if (card.hasError) FontWeight.Bold else FontWeight.Normal,
-                    color = Ink.fg,
-                )
+                if (card.hasError || !card.isBalance) {
+                    Text(
+                        when {
+                            card.hasError -> "! 不可达"
+                            card.kind == "plan" -> "计划"
+                            else -> "订阅"
+                        },
+                        fontSize = 13.sp,
+                        fontWeight = if (card.hasError) FontWeight.Bold else FontWeight.Normal,
+                        color = Ink.fg,
+                    )
+                }
             }
             val subtitle = listOfNotNull(
                 card.from,
@@ -299,14 +342,30 @@ fun QuotaCardItem(
                 card.hasError -> Text(card.error ?: "未知错误", fontSize = 14.sp, color = Ink.fg,
                     maxLines = 3, overflow = TextOverflow.Ellipsis)
                 card.isBalance -> {
-                    Text("剩余", fontSize = 13.sp, color = Ink.fgSoft)
                     Text(card.balance ?: "—", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = Ink.fg)
                     if (card.balanceSplit.isNotEmpty()) {
-                        Text(
-                            card.balanceSplit.joinToString(" · ") { "${it.label} ${it.text}" },
-                            fontSize = 13.sp,
-                            color = Ink.fgSoft,
-                        )
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            card.balanceSplit.forEach { split ->
+                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        balanceSplitLabel(split.label),
+                                        Modifier.weight(1f).padding(end = 8.dp),
+                                        fontSize = 13.sp,
+                                        color = Ink.fgSoft,
+                                    )
+                                    Text(
+                                        split.text,
+                                        Modifier.weight(1f),
+                                        fontSize = 13.sp,
+                                        color = Ink.fg,
+                                        textAlign = TextAlign.End,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    card.readAt?.takeIf { it.isNotBlank() }?.let {
+                        Text("数据时间 ${fmtReset(it)}", fontSize = 12.sp, color = Ink.fgSoft)
                     }
                 }
                 else -> {
@@ -325,6 +384,10 @@ fun QuotaCardItem(
                 it.unlimited != true && (remainingPercent(it)?.let { percent -> percent <= 10 } == true)
             }
             if (lowCount > 2) Text("共 $lowCount 个窗口额度偏低", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            quotaResetSummaryLines(card).forEach { line ->
+                Text(line, fontSize = 13.sp, color = Ink.fgSoft)
+            }
+            Spacer(Modifier.weight(1f))
             Text(
                 if (windowCount > 0) "完整详情 · 共 $windowCount 个额度窗口 ›" else "查看完整额度 ›",
                 Modifier.padding(top = 4.dp), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Ink.fg,
@@ -383,10 +446,32 @@ private fun QuotaDetails(card: QuotaCard, onClose: () -> Unit) {
                         Text(card.balance ?: "—", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = Ink.fg)
                     }
                     card.balanceSplit.forEach {
-                        Text("${it.label} ${it.text}", fontSize = 16.sp, color = Ink.fg)
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                balanceSplitLabel(it.label),
+                                Modifier.weight(1f).padding(end = 8.dp),
+                                fontSize = 16.sp,
+                                color = Ink.fgSoft,
+                            )
+                            Text(
+                                it.text,
+                                Modifier.weight(1f),
+                                fontSize = 16.sp,
+                                color = Ink.fg,
+                                textAlign = TextAlign.End,
+                            )
+                        }
                     }
                     card.until?.let { Text("到期 ${fmtReset(it)}", fontSize = 14.sp, color = Ink.fgSoft) }
-                    card.readAt?.let { Text("读取 ${fmtReset(it)}", fontSize = 14.sp, color = Ink.fgSoft) }
+                    quotaResetSummaryLines(card).forEach { line ->
+                        Text(line, fontSize = 14.sp, color = Ink.fgSoft)
+                    }
+                    quotaResetEachLines(card).forEach { line ->
+                        Text(line, fontSize = 14.sp, color = Ink.fgSoft)
+                    }
+                    card.readAt?.takeIf { it.isNotBlank() }?.let {
+                        Text("数据时间 ${fmtReset(it)}", fontSize = 14.sp, color = Ink.fgSoft)
+                    }
                 }
                 val windows = windowsShown(card).sortedBy {
                     if (it.unlimited == true) 101 else remainingPercent(it) ?: 101

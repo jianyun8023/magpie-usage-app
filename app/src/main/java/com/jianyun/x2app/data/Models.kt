@@ -19,10 +19,27 @@ data class QuotaCard(
     val error: String? = null,
     @SerialName("readAt") val readAt: String? = null,
     val until: String? = null,
+    val resets: QuotaResets? = null,
 ) {
     val isBalance: Boolean get() = kind == "balance"
     val hasError: Boolean get() = error != null
 }
+
+@Serializable
+data class QuotaResets(
+    val count: Long? = null,
+    val until: String? = null,
+    val fiveHour: Int? = null,
+    val weekly: Int? = null,
+    val each: List<QuotaResetTime> = emptyList(),
+    val byWindow: Boolean = false,
+)
+
+@Serializable
+data class QuotaResetTime(
+    val until: String? = null,
+    val window: String? = null,
+)
 
 @Serializable
 data class QuotaWindow(

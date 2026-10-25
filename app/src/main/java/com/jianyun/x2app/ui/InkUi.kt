@@ -107,21 +107,25 @@ fun ErrorBox(msg: String, onRetry: () -> Unit) {
 }
 
 @Composable
-fun <T> DataStatus(state: LoadState.Ready<T>) {
+fun DataStatus(state: LoadState<*>) {
+    val ready = state as? LoadState.Ready<*>
     val text = when {
-        state.refreshing -> "正在更新，当前数据仍可查看"
-        state.updateError != null -> "! 更新失败：${state.updateError}"
-        state.updatedAt != null -> "更新于 ${clock(state.updatedAt)}"
+        ready == null -> ""
+        ready.refreshing -> "正在更新，当前数据仍可查看"
+        ready.updateError != null -> "! 更新失败：${ready.updateError}"
+        ready.updatedAt != null -> "更新于 ${clock(ready.updatedAt)}"
         else -> ""
     }
-    if (text.isNotEmpty()) {
-        Text(
-            text,
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-            color = if (state.updateError == null) Ink.fgSoft else Ink.fg,
-            fontSize = 12.sp,
-            maxLines = 2,
-        )
+    Box(Modifier.fillMaxWidth().defaultMinSize(minHeight = 24.dp).padding(horizontal = 16.dp)) {
+        if (text.isNotEmpty()) {
+            Text(
+                text,
+                Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                color = if (ready?.updateError == null) Ink.fgSoft else Ink.fg,
+                fontSize = 12.sp,
+                maxLines = 2,
+            )
+        }
     }
 }
 

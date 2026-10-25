@@ -51,7 +51,7 @@ fun UsageScreen(
 ) {
     var section by rememberSaveable { mutableStateOf("overview") }
     Column(Modifier.fillMaxSize()) {
-        if (state is LoadState.Ready) DataStatus(state)
+        DataStatus(state)
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),

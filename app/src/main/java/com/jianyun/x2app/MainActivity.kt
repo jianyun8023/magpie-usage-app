@@ -23,6 +23,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -31,12 +32,14 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jianyun.x2app.data.SettingsStore
 import com.jianyun.x2app.ui.AppViewModel
 import com.jianyun.x2app.ui.Ink
+import com.jianyun.x2app.ui.LoadState
 import com.jianyun.x2app.ui.InkButton
 import com.jianyun.x2app.ui.LedgerScreen
 import com.jianyun.x2app.ui.QuotasScreen
@@ -49,6 +52,7 @@ enum class Tab(val label: String) { QUOTAS("额度"), LEDGER("流水"), USAGE("�
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        com.jianyun.x2app.vpn.AppNetworkEngine.get(applicationContext)
         val settings = SettingsStore.get(this)
         setContent { App(settings) }
     }
@@ -73,13 +77,22 @@ fun App(settings: SettingsStore) {
     val ledgerProvider by vm.ledgerProvider.collectAsState()
     val ledgerPage by vm.ledgerPage.collectAsState()
     val usagePeriod by vm.usagePeriod.collectAsState()
+    val context = LocalContext.current
+    val engine = remember { com.jianyun.x2app.vpn.AppNetworkEngine.get(context) }
+    val tailscaleState by engine.tailscale.collectAsState()
 
-    LaunchedEffect(config, tab, showSettings) {
+    LaunchedEffect(config, tab, showSettings, tailscaleState.connected) {
         if (config.isSet && !showSettings) {
             when (tab) {
-                Tab.QUOTAS -> vm.loadQuotas()
-                Tab.LEDGER -> vm.loadLedger()
-                Tab.USAGE -> vm.loadUsage()
+                Tab.QUOTAS -> if (tailscaleState.connected && quotasState is LoadState.Failed) {
+                    vm.refreshQuotas()
+                } else vm.loadQuotas()
+                Tab.LEDGER -> if (tailscaleState.connected && ledgerState is LoadState.Failed) {
+                    vm.refreshLedger()
+                } else vm.loadLedger()
+                Tab.USAGE -> if (tailscaleState.connected && usageState is LoadState.Failed) {
+                    vm.refreshUsage()
+                } else vm.loadUsage()
             }
         }
     }
@@ -133,7 +146,7 @@ fun App(settings: SettingsStore) {
                         Row(Modifier.fillMaxWidth().selectableGroup().padding(horizontal = 16.dp, vertical = 8.dp)) {
                             Tab.entries.forEach { item ->
                                 Box(
-                                    Modifier.weight(1f).defaultMinSize(minHeight = 52.dp)
+                                    Modifier.weight(1f).defaultMinSize(minHeight = 64.dp)
                                         .semantics {
                                             role = Role.Tab
                                             selected = tab == item

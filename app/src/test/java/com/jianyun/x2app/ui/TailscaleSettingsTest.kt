@@ -8,22 +8,27 @@ class TailscaleSettingsTest {
     @Test fun restoredAccountWithoutServiceAlwaysOffersManualConnection() {
         listOf("Starting", "Running", "Stopped", "NeedsMachineAuth").forEach { backend ->
             assertEquals(TailscalePrimaryAction.CONNECT, tailscalePrimaryAction(
-                TailscaleState(backendState = backend, serviceActive = false, addresses = listOf("100.127.250.3"))
+                TailscaleState(backendState = backend, engineActive = false, addresses = listOf("100.127.250.3"))
             ))
         }
     }
 
-    @Test fun activeServiceOffersDisconnectWhileConnectingOrConnected() {
-        listOf("Starting", "Running", "NeedsMachineAuth", "NeedsLogin").forEach { backend ->
+    @Test fun activeEngineOffersDisconnectWhileConnectingOrConnected() {
+        listOf("Starting", "Running", "NeedsMachineAuth").forEach { backend ->
             assertEquals(TailscalePrimaryAction.DISCONNECT, tailscalePrimaryAction(
-                TailscaleState(backendState = backend, serviceActive = true)
+                TailscaleState(backendState = backend, engineActive = true)
             ))
         }
     }
 
-    @Test fun authorizationRequiresLiveServiceAndMissingAccountStillOffersLogin() {
+    @Test fun unknownRestoredStateConnectsBeforeAssumingLoginIsRequired() {
+        assertEquals(TailscalePrimaryAction.CONNECT, tailscalePrimaryAction(TailscaleState()))
+    }
+
+    @Test fun authorizationRequiresLiveEngineAndMissingAccountStillOffersLogin() {
         val inactive = TailscaleState(backendState = "NeedsLogin", authUrl = "https://example.test/login")
         assertEquals(TailscalePrimaryAction.LOGIN, tailscalePrimaryAction(inactive))
-        assertEquals(TailscalePrimaryAction.AUTHORIZE, tailscalePrimaryAction(inactive.copy(serviceActive = true)))
+        assertEquals(TailscalePrimaryAction.LOGIN, tailscalePrimaryAction(inactive.copy(authUrl = null, engineActive = true)))
+        assertEquals(TailscalePrimaryAction.AUTHORIZE, tailscalePrimaryAction(inactive.copy(engineActive = true)))
     }
 }

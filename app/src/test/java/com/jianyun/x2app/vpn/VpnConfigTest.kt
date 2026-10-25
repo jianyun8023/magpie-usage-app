@@ -2,6 +2,7 @@ package com.jianyun.x2app.vpn
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class VpnConfigTest {
@@ -50,17 +51,13 @@ class VpnConfigTest {
         assertThrows(IllegalArgumentException::class.java) { parseVpnConfig(ByteArray(MAX_CONFIG_BYTES + 1)) }
     }
 
-    @Test fun rejectsRulesThatExcludeThisApp() {
-        listOf("ExcludedApplications = com.jianyun.x2app", "IncludedApplications = other.app").forEach { rule ->
-            val text = fixture.replace("[Interface]", "[Interface]\n$rule")
-            assertThrows(VpnRoutingException::class.java) { parseVpnConfig(text.toByteArray()) }
-        }
-    }
-
-    @Test fun acceptsRulesThatRouteThisApp() {
-        listOf("ExcludedApplications = other.app", "IncludedApplications = other.app, com.jianyun.x2app").forEach { rule ->
-            val text = fixture.replace("[Interface]", "[Interface]\n$rule")
-            assertEquals(1, parseVpnConfig(text.toByteArray()).peers.size)
-        }
+    @Test fun nativeParametersPreserveAddressesDnsAndDefaultMtu() {
+        val config = parseVpnConfig(fixture.toByteArray())
+        val parameters = wireGuardParameters(config)
+        assertEquals("""["10.7.0.2"]""", parameters.localIPsJSON)
+        assertEquals("[]", parameters.dnsIPsJSON)
+        assertEquals(1280L, parameters.mtu)
+        assertTrue(parameters.uapi.contains("private_key="))
+        assertEquals(1, parameters.uapi.lineSequence().count { it.startsWith("endpoint=") })
     }
 }

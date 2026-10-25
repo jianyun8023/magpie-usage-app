@@ -24,9 +24,9 @@ import com.jianyun.x2app.tailscale.TailscaleState
 internal enum class TailscalePrimaryAction { LOGIN, CONNECT, DISCONNECT, AUTHORIZE }
 
 internal fun tailscalePrimaryAction(state: TailscaleState): TailscalePrimaryAction = when {
-    state.serviceActive && state.authUrl != null -> TailscalePrimaryAction.AUTHORIZE
-    state.serviceActive -> TailscalePrimaryAction.DISCONNECT
-    state.backendState in listOf("NoState", "NeedsLogin", "InUseOtherUser") -> TailscalePrimaryAction.LOGIN
+    state.engineActive && state.authUrl != null -> TailscalePrimaryAction.AUTHORIZE
+    state.backendState in listOf("NeedsLogin", "InUseOtherUser") -> TailscalePrimaryAction.LOGIN
+    state.engineActive -> TailscalePrimaryAction.DISCONNECT
     else -> TailscalePrimaryAction.CONNECT
 }
 
@@ -50,9 +50,9 @@ fun TailscaleSettings(
         Text("Tailscale", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Ink.fg)
         Text(
             when {
-                state.serviceActive && state.connected -> "已连接"
-                !state.serviceActive && state.backendState in listOf("Starting", "Running") -> "已断开 · 可手动连接"
-                state.backendState == "Running" -> "引擎运行中 · VPN 尚未建立"
+                state.engineActive && state.connected -> "已连接"
+                !state.engineActive && state.backendState in listOf("Starting", "Running") -> "已断开 · 可手动连接"
+                state.backendState == "Running" -> "引擎运行中 · 应用内网络尚未建立"
                 state.backendState == "Starting" -> "正在建立连接"
                 state.backendState == "NeedsMachineAuth" -> "等待管理员批准设备"
                 state.backendState == "NeedsLogin" -> "需要登录"
@@ -62,7 +62,7 @@ fun TailscaleSettings(
             },
             color = Ink.fg,
         )
-        if (state.serviceActive && state.connected && state.addresses.isNotEmpty()) {
+        if (state.engineActive && state.connected && state.addresses.isNotEmpty()) {
             Text(state.addresses.joinToString("\n"), color = Ink.fgSoft)
         }
         state.error?.let { Text(it, color = Ink.danger) }

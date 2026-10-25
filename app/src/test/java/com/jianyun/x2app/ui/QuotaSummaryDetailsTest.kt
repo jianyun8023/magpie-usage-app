@@ -3,6 +3,8 @@ package com.jianyun.x2app.ui
 import com.jianyun.x2app.data.BalanceSplit
 import com.jianyun.x2app.data.Holds
 import com.jianyun.x2app.data.QuotaCard
+import com.jianyun.x2app.data.QuotaResetTime
+import com.jianyun.x2app.data.QuotaResets
 import com.jianyun.x2app.data.QuotaWindow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -130,4 +132,48 @@ class QuotaSummaryDetailsTest {
             "exact expiry", "exact read time").forEach { assertTrue(text.contains(it)) }
         assertTrue(summaryWindows(card).isEmpty())
     }
+
+    @Test
+    fun balanceSplitLabelsNormalizeKnownValuesAndKeepUnknownValues() {
+        assertEquals("赠送", balanceSplitLabel("Granted"))
+        assertEquals("充值", balanceSplitLabel("Topped up"))
+        assertEquals("充值", balanceSplitLabel(" topped-up "))
+        assertEquals("Future credit", balanceSplitLabel("Future credit"))
+    }
+
+    @Test
+    fun resetSummaryKeepsZeroAndTreatsNegativeOrMissingAsUnknown() {
+        assertEquals(listOf("可用重置 0 次"),
+            quotaResetSummaryLines(QuotaCard(provider = "codex", resets = QuotaResets(count = 0))))
+        assertEquals(listOf("重置额度最早到期 ${localStamp("2030-01-01T00:00:00Z")}"),
+            quotaResetSummaryLines(QuotaCard(provider = "codex",
+                resets = QuotaResets(count = -1, until = "2030-01-01T00:00:00Z"))))
+        assertEquals(emptyList<String>(), quotaResetSummaryLines(QuotaCard(provider = "codex")))
+    }
+
+    @Test
+    fun windowedResetsUseDedicatedCountsAndSkipGenericCount() {
+        val card = QuotaCard(provider = "glm", resets = QuotaResets(
+            count = 9, fiveHour = 0, weekly = 2, until = "2030-01-01T00:00:00Z", byWindow = true))
+        assertEquals(listOf("5小时重置 0 次 / 每周重置 2 次",
+            "重置额度最早到期 ${localStamp("2030-01-01T00:00:00Z")}"), quotaResetSummaryLines(card))
+    }
+
+    @Test
+    fun resetEachLinesLabelWindowsAndErrorCardsHideStaleQuota() {
+        val resets = QuotaResets(each = listOf(
+            QuotaResetTime(until = "2030-01-01T00:00:00Z", window = "fiveHour"),
+            QuotaResetTime(until = "2030-01-08T00:00:00Z", window = "weekly"),
+            QuotaResetTime(until = "2030-02-01T00:00:00Z"),
+            QuotaResetTime(window = "fiveHour"),
+        ))
+        assertEquals(listOf("5小时重置额度到期 ${localStamp("2030-01-01T00:00:00Z")}",
+            "每周重置额度到期 ${localStamp("2030-01-08T00:00:00Z")}",
+            "重置额度到期 ${localStamp("2030-02-01T00:00:00Z")}"),
+            quotaResetEachLines(QuotaCard(provider = "codex", resets = resets)))
+        assertEquals(emptyList<String>(), quotaResetEachLines(QuotaCard(provider = "codex", error = "down", resets = resets)))
+    }
+
+    private fun localStamp(iso: String): String = java.time.format.DateTimeFormatter
+        .ofPattern("MM-dd HH:mm").format(java.time.Instant.parse(iso).atZone(java.time.ZoneId.systemDefault()))
 }

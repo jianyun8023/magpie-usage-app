@@ -5,9 +5,9 @@ import org.junit.Test
 
 class TailscaleDiagnosticsTest {
     @Test fun keepsKnownFailureButNeverRawSuffix() {
-        val message = "Tailscale 引擎关闭了 VPN https://login.example/a/secret-token privateKey=secret-key"
+        val message = "Tailscale 引擎已关闭 https://login.example/a/secret-token privateKey=secret-key"
         val diagnostic = TailscaleDiagnostics.error(message)
-        assertTrue(diagnostic.startsWith("VPN_ENGINE_CLOSED:"))
+        assertTrue(diagnostic.startsWith("ENGINE_CLOSED:"))
         assertFalse(diagnostic.contains("https://"))
         assertFalse(diagnostic.contains("secret"))
     }

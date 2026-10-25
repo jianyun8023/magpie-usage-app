@@ -3,9 +3,8 @@ package com.jianyun.x2app.tailscale
 /** Allowlisted diagnostics: arbitrary engine text may contain secrets, even without a key label. */
 internal object TailscaleDiagnostics {
     private val signatures = linkedMapOf(
-        "VPN_ENGINE_CLOSED" to listOf("Tailscale 引擎关闭了 VPN"),
-        "VPN_REVOKED" to listOf("系统 VPN 授权已撤销"),
-        "VPN_NOT_PREPARED" to listOf("请先允许系统 VPN 授权", "系统未建立 Tailscale VPN", "VPN not prepared"),
+        "ENGINE_CLOSED" to listOf("Tailscale 引擎已关闭"),
+        "ENGINE_STATE" to listOf("无法读取 Tailscale 引擎状态"),
         "VPN_MISSING_ADDRESS" to listOf("At least one address must be specified"),
         "VPN_CLOSING" to listOf("Tailscale 服务正在关闭"),
         "VPN_SERVICE_TIMEOUT" to listOf("等待 Tailscale VPN 服务超时"),
@@ -32,7 +31,7 @@ internal object TailscaleDiagnostics {
 
     fun state(state: TailscaleState): String {
         val backend = state.backendState.takeIf { it in setOf("NoState", "InUseOtherUser", "NeedsLogin", "NeedsMachineAuth", "Stopped", "Starting", "Running") } ?: "Unknown"
-        return "backend=$backend serviceActive=${state.serviceActive} vpnActive=${state.vpnActive} connected=${state.connected} " +
+        return "backend=$backend engineActive=${state.engineActive} nativeConnected=${state.nativeConnected} connected=${state.connected} " +
             "authPresent=${state.authUrl != null} ipCount=${state.addresses.size} error=${error(state.error)} " +
             "health=${state.health.map(::error)}"
     }

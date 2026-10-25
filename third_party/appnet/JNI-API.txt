@@ -1,0 +1,51 @@
+Compiled from "Appnet.java"
+public abstract class appnet.Appnet {
+  public static void touch();
+  public static native appnet.Client newClient(java.lang.String, appnet.StateStore) throws java.lang.Exception;
+  public static native void setInterfaceProvider(appnet.InterfaceProvider) throws java.lang.Exception;
+  static {};
+}
+Compiled from "Client.java"
+public final class appnet.Client implements go.Seq$Proxy {
+  public final int incRefnum();
+  public appnet.Client(java.lang.String, appnet.StateStore);
+  appnet.Client(int);
+  public native void close() throws java.lang.Exception;
+  public native appnet.Response httpGet(java.lang.String, java.lang.String) throws java.lang.Exception;
+  public native appnet.Response httpGetForSession(java.lang.String, java.lang.String, long) throws java.lang.Exception;
+  public native void loginTailscale() throws java.lang.Exception;
+  public native void logoutTailscale(java.lang.String) throws java.lang.Exception;
+  public native long sessionID();
+  public native void startTailscale(java.lang.String) throws java.lang.Exception;
+  public native void startWireGuard(java.lang.String, java.lang.String, java.lang.String, long) throws java.lang.Exception;
+  public native void stopTailscale() throws java.lang.Exception;
+  public native void stopWireGuard() throws java.lang.Exception;
+  public native java.lang.String tailscaleStatusJSON() throws java.lang.Exception;
+  public boolean equals(java.lang.Object);
+  public int hashCode();
+  public java.lang.String toString();
+  static {};
+}
+Compiled from "StateStore.java"
+public interface appnet.StateStore {
+  public abstract java.lang.String read(java.lang.String) throws java.lang.Exception;
+  public abstract void write(java.lang.String, java.lang.String) throws java.lang.Exception;
+}
+Compiled from "InterfaceProvider.java"
+public interface appnet.InterfaceProvider {
+  public abstract java.lang.String interfacesJSON() throws java.lang.Exception;
+}
+Compiled from "Response.java"
+public final class appnet.Response implements go.Seq$Proxy {
+  public final int incRefnum();
+  appnet.Response(int);
+  public appnet.Response();
+  public final native long getStatusCode();
+  public final native void setStatusCode(long);
+  public final native java.lang.String getBody();
+  public final native void setBody(java.lang.String);
+  public boolean equals(java.lang.Object);
+  public int hashCode();
+  public java.lang.String toString();
+  static {};
+}

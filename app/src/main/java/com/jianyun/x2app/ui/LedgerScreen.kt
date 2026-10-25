@@ -76,6 +76,7 @@ fun LedgerScreen(
             onPeriod, onToggleFailed, onAgent, onProvider, onPrevious, onNext, onResetFilters, onPage,
         )
         else -> Column(Modifier.fillMaxSize()) {
+            DataStatus(state)
             FilterBar(
                 period, failedOnly, agent ?: "全部", provider ?: "全部", onPeriod, onToggleFailed,
                 { pendingPicker = "agent" }, { pendingPicker = "provider" },

@@ -1,0 +1,59 @@
+--- a/vendor/tailscale.com/tsnet/tsnet.go
++++ b/vendor/tailscale.com/tsnet/tsnet.go
+@@ -380,6 +380,19 @@
+ 	return s.dialer.UserDial(ctx, network, address)
+ }
+ 
++// DialStrict connects only through this server's userspace netstack. Names are
++// resolved only from the current netmap (MagicDNS); unknown names and non-peer
++// addresses never fall back to the system network.
++func (s *Server) DialStrict(ctx context.Context, network, address string) (net.Conn, error) {
++	if err := s.Start(); err != nil {
++		return nil, err
++	}
++	if err := s.awaitRunning(ctx); err != nil {
++		return nil, err
++	}
++	return s.dialer.StrictUserDial(ctx, network, address)
++}
++
+ // awaitRunning waits until the backend is in state Running.
+ // If the backend is in state Starting, it blocks until it reaches
+ // a terminal state (such as Stopped, NeedsMachineAuth)
+--- a/vendor/tailscale.com/net/tsdial/tsdial.go
++++ b/vendor/tailscale.com/net/tsdial/tsdial.go
+@@ -590,7 +590,34 @@
+ 	if err != nil {
+ 		return nil, err
+ 	}
++	return d.dialUserAddrs(ctx, network, ipps)
++}
+ 
++// StrictUserDial resolves only a known MagicDNS name or IP literal and always
++// dials through netstack. It never uses the system resolver or a direct system
++// dial path.
++func (d *Dialer) StrictUserDial(ctx context.Context, network, addr string) (net.Conn, error) {
++	ipp, err := d.resolveAddr(ctx, network, addr)
++	if err != nil {
++		if err == errUnresolved {
++			host, _, splitErr := splitHostPort(addr)
++			if splitErr != nil {
++				host = addr
++			}
++			return nil, fmt.Errorf("host is not resolvable through Tailscale: %q", host)
++		}
++		return nil, err
++	}
++	if d.NetstackDialTCP == nil || d.NetstackDialUDP == nil {
++		return nil, errors.New("Dialer not initialized correctly")
++	}
++	if strings.HasPrefix(network, "udp") {
++		return d.NetstackDialUDP(ctx, ipp)
++	}
++	return d.NetstackDialTCP(ctx, ipp)
++}
++
++func (d *Dialer) dialUserAddrs(ctx context.Context, network string, ipps []netip.AddrPort) (net.Conn, error) {
+ 	// Happy eyeballs is a no-op (and undefined) for UDP; there's no
+ 	// connect to race.
+ 	if len(ipps) == 1 || strings.HasPrefix(network, "udp") {

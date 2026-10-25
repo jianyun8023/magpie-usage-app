@@ -7,7 +7,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import java.net.ConnectException
-import java.net.HttpURLConnection
 import java.net.SocketTimeoutException
 import java.net.URI
 import java.net.URL
@@ -20,6 +19,7 @@ import javax.net.ssl.SSLException
 class MagpieApi(
     private var baseUrl: String,
     private var webKey: String,
+    private val transport: HttpTransport? = null,
 ) {
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
@@ -53,20 +53,10 @@ class MagpieApi(
 
     private suspend fun get(path: String, params: Map<String, String> = emptyMap()): String =
         withContext(Dispatchers.IO) {
-            val connection = URL(fullUrl(path, params)).openConnection() as HttpURLConnection
-            try {
-                connection.connectTimeout = 8000
-                connection.readTimeout = 45000
-                connection.setRequestProperty("Cookie", "magpie_web_${port()}=$webKey")
-                connection.setRequestProperty("Accept", "application/json")
-                val code = connection.responseCode
-                val body = (if (code in 200..299) connection.inputStream else connection.errorStream)
-                    ?.bufferedReader()?.use { it.readText() } ?: ""
-                if (code !in 200..299) throw ApiException(code, body.take(300))
-                body
-            } finally {
-                connection.disconnect()
-            }
+            val response = (transport ?: MagpieTransport.current)
+                .get(fullUrl(path, params), "magpie_web_${port()}=$webKey")
+            if (response.statusCode !in 200..299) throw ApiException(response.statusCode, response.body.take(300))
+            response.body
         }
 
     suspend fun quotas(asked: Boolean = false): List<QuotaCard> =

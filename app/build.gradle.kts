@@ -51,11 +51,13 @@ android {
     }
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        // The WireGuard dependency supplies only the config parser; appnet owns the single Go runtime.
+        jniLibs.excludes += "**/libwg-go.so"
     }
 }
 
 dependencies {
-    implementation(files("libs/libtailscale.aar"))
+    implementation(files("libs/libappnet.aar"))
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
     implementation("com.wireguard.android:tunnel:1.0.20260102")
     testImplementation("junit:junit:4.13.2")
