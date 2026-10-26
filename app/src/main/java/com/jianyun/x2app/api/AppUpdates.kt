@@ -23,7 +23,7 @@ suspend fun checkForAppUpdate(
     currentVersion: String,
     revision: String,
     revisionTime: Long,
-    transport: HttpTransport = MagpieTransport.current,
+    transport: HttpTransport = DirectHttpTransport,
 ): AppUpdate? = withContext(Dispatchers.IO) {
     val source = GitHubUpdateSource("jianyun8023", "magpie-usage-app",
         includePreReleases = preferences.channel == UpdateChannel.BETA,

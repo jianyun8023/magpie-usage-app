@@ -9,7 +9,7 @@
 
 本地文件保留 `com.pavi2410.appupdater` 包名，并注明改动。调整包括：将 Ktor 换成注入的请求函数；按通道过滤草稿与预发布；保留名称、预发布标记及附件更新时间；列表请求每页读取 30 个版本。
 
-应用侧 `api/AppUpdates.kt` 将请求接入现有 `MagpieTransport`，只传空鉴权值，遵守当前选中的应用内网络，失败不回落直连。`data/UpdatePreferences.kt` 负责通道与 HTTPS 加速前缀配置。`ui/UpdateSettings.kt` 在设置页提供手动检查及浏览器跳转，不包含后台轮询、下载器或自动安装。
+应用侧 `api/AppUpdates.kt` 使用现有 `DirectHttpTransport` 独立通过系统网络检查公开 Release，只传空鉴权值，不改变网关的应用内网络选择；网关请求仍由 `MagpieTransport` 路由并保持断线阻断。`data/UpdatePreferences.kt` 负责通道与 HTTPS 加速前缀配置。`ui/UpdateSettings.kt` 在设置页提供手动检查及浏览器跳转，不包含后台轮询、下载器或自动安装。
 
 标准版本号使用 [Java SemVer 0.10.2](https://github.com/zafarkhaja/jsemver)（MIT）比较，依赖坐标为 `com.github.zafarkhaja:java-semver:0.10.2`。不使用上游按点分数字比较的实现，确保 `beta.2` / `beta.10` / 正式版的优先级符合 SemVer。
 

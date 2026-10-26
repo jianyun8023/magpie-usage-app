@@ -78,7 +78,7 @@ WireGuard 与 Tailscale 互斥，切换时会先断开另一种。选择的应�
 
 自定义前缀若填写 `https://proxy.example/`，检查请求会转发到 `https://proxy.example/https://api.github.com/repos/jianyun8023/magpie-usage-app/releases/...`，APK 下载链接也使用同一前缀。请替换为实际可用且支持 GitHub API 转发的 HTTPS 加速站；仅支持附件下载的站点不能用于检查。通道和预设源即时保存，自定义前缀在点击检查时保存。
 
-更新检查遵守当前应用内网络选择，不发送 Magpie 网关 API Key，不会因隧道断开而回落直连。浏览器下载由系统浏览器的网络处理。此功能仅手动检查，不在后台轮询或自动安装。采用的更新源代码与版本比较库见 [第三方来源说明](third_party/app-updater/README.md)。
+更新检查独立使用系统网络，不经过应用内 WireGuard / Tailscale，不发送 Magpie 网关 API Key，也不改变网关连接。网关请求仍遵守应用内网络选择，隧道断开时不会回落直连。浏览器下载由系统浏览器的网络处理。此功能仅手动检查，不在后台轮询或自动安装。采用的更新源代码与版本比较库见 [第三方来源说明](third_party/app-updater/README.md)。
 
 ## 构建与测试
 

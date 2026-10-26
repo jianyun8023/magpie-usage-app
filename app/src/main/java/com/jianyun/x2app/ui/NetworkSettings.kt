@@ -102,7 +102,7 @@ fun NetworkSettings(modifier: Modifier = Modifier) {
             fontSize = 14.sp,
             color = Ink.fgSoft,
         )
-        Text("请求只会走当前选择的网络；切换或断开失败时不会回落直连。", fontSize = 14.sp, color = Ink.fgSoft)
+        Text("网关请求只会走当前选择的网络；切换或断开失败时不会回落直连。", fontSize = 14.sp, color = Ink.fgSoft)
         operationError?.let { Text(it, color = Ink.danger) }
 
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {

@@ -77,6 +77,7 @@ fun UpdateSettings(preferences: UpdatePreferences, onSave: (UpdatePreferences) -
 
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("当前版本 ${BuildConfig.VERSION_NAME}", fontSize = 14.sp, color = Ink.fgSoft)
+        Text("更新检查使用系统网络，不影响网关连接。", fontSize = 14.sp, color = Ink.fgSoft)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             UpdateChannel.entries.forEach { channel ->
                 InkButton(channel.label, {
@@ -149,7 +150,7 @@ fun UpdateSettings(preferences: UpdatePreferences, onSave: (UpdatePreferences) -
                             error = when (e) {
                                 is SerializationException -> "更新源返回了无法识别的数据，请确认加速站支持 GitHub API"
                                 is IllegalStateException -> e.message ?: "更新检查失败，请稍后重试"
-                                else -> "更新检查失败，请检查当前网络或加速地址"
+                                else -> "更新检查失败，请检查系统网络或加速地址"
                             }
                         } finally {
                             checking = false

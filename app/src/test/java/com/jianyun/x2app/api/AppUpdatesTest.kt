@@ -89,20 +89,37 @@ class AppUpdatesTest {
         assertNull(choose(listOf(release("v1.0.0").copy(assets = listOf(asset("SHA256SUMS")))), UpdateChannel.STABLE, "0.2.1"))
     }
 
-    @Test fun disconnectedTunnelNeverFallsBackToDirectForUpdateCheck() = runTest {
-        var requests = 0
+    @Test fun systemUpdateCheckLeavesDisconnectedGatewayRouteBlocked() = runTest {
+        var gatewayRequests = 0
+        var updateRequests = 0
         val router = AppRequestRouter(AppNetworkMode.TAILSCALE,
-            HttpTransport { _, _, _ -> requests++; HttpResponse(200, releaseJson) }) { _, _, _, _ ->
-            requests++
+            HttpTransport { _, _, _ -> gatewayRequests++; HttpResponse(200, releaseJson) }) { _, _, _, _ ->
+            gatewayRequests++
             HttpResponse(200, releaseJson)
         }
+        val original = MagpieTransport.current
+        val route = router.route
         try {
-            checkForAppUpdate(UpdatePreferences(), "0.2.1", currentRevision, currentTime, router)
-            fail("a disconnected selection must block update requests")
-        } catch (e: IllegalStateException) {
-            assertTrue(e.message.orEmpty().contains("未连接"))
+            MagpieTransport.current = router
+            val found = checkForAppUpdate(UpdatePreferences(), "0.2.1", currentRevision, currentTime,
+                HttpTransport { _, authorization, _ ->
+                    updateRequests++
+                    assertEquals("", authorization)
+                    HttpResponse(200, releaseJson)
+                })
+            assertEquals("v0.3.0", found?.release?.tagName)
+            assertEquals(route, router.route)
+            try {
+                MagpieTransport.current.request("https://gateway.test/quotas", "Bearer secret", "GET")
+                fail("a disconnected selection must still block gateway requests")
+            } catch (e: IllegalStateException) {
+                assertTrue(e.message.orEmpty().contains("未连接"))
+            }
+            assertEquals(1, updateRequests)
+            assertEquals(0, gatewayRequests)
+        } finally {
+            MagpieTransport.current = original
         }
-        assertEquals(0, requests)
     }
 
     @Test fun failedAndMalformedResponsesCannotReportUpToDate() = runTest {
