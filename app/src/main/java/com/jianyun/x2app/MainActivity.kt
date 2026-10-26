@@ -64,6 +64,8 @@ enum class Tab(val label: String) {
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // fullUser 依赖系统“自动旋转”开关，且在部分 ROM 上不生效；纯传感器四方向更可靠
+        requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
         com.jianyun.x2app.vpn.AppNetworkEngine.get(applicationContext)
         val settings = SettingsStore.get(this)
         setContent { App(settings) }
@@ -90,7 +92,9 @@ fun App(settings: SettingsStore) {
     val ledgerPage by vm.ledgerPage.collectAsState()
     val usagePeriod by vm.usagePeriod.collectAsState()
     val context = LocalContext.current
-    val wideNavigation = LocalConfiguration.current.screenWidthDp >= 600
+    val configuration = LocalConfiguration.current
+    // 只有真实横屏才切换布局：竖屏（含平板竖屏）保持原有布局
+    val landscape = configuration.screenWidthDp > configuration.screenHeightDp
     val engine = remember { com.jianyun.x2app.vpn.AppNetworkEngine.get(context) }
     val tailscaleState by engine.tailscale.collectAsState()
 
@@ -122,7 +126,7 @@ fun App(settings: SettingsStore) {
         ),
     ) {
         Row(Modifier.fillMaxSize()) {
-            if (wideNavigation && config.isSet && !showSettings) {
+            if (landscape && config.isSet && !showSettings) {
                 WideNavigationRail(
                     selected = tab,
                     onSelect = { tabName = it.name },
@@ -137,7 +141,7 @@ fun App(settings: SettingsStore) {
                         title = if (!config.isSet || showSettings) "设置" else "Magpie ${tab.label}",
                         showRefresh = config.isSet && !showSettings,
                         showBack = config.isSet && showSettings,
-                        showSettingsAction = config.isSet && !showSettings && !wideNavigation,
+                        showSettingsAction = config.isSet && !showSettings && !landscape,
                         onRefresh = {
                             when (tab) {
                                 Tab.QUOTAS -> vm.refreshQuotas()
@@ -150,18 +154,21 @@ fun App(settings: SettingsStore) {
                     )
                 },
                 bottomBar = {
-                    if (!wideNavigation && !showSettings && config.isSet) {
+                    if (!landscape && !showSettings && config.isSet) {
                         BottomNavigation(selected = tab, onSelect = { tabName = it.name })
                     }
                 },
             ) { padding ->
                 Box(
-                    Modifier
-                        .then(if (wideNavigation) Modifier.widthIn(max = 1040.dp) else Modifier)
-                        .fillMaxSize()
-                        .padding(padding)
+                    Modifier.fillMaxSize().padding(padding),
+                    contentAlignment = Alignment.TopCenter,
                 ) {
-                    when {
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .then(if (landscape) Modifier.widthIn(max = 1040.dp) else Modifier)
+                    ) {
+                        when {
                         !config.isSet || showSettings -> SettingsScreen(
                             config = config,
                             onSave = { url, key ->
@@ -200,6 +207,7 @@ fun App(settings: SettingsStore) {
                             onPeriod = vm::setUsagePeriod,
                             onRefresh = vm::refreshUsage,
                         )
+                        }
                     }
                 }
             }

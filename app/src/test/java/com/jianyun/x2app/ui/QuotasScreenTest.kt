@@ -33,17 +33,22 @@ class QuotasScreenTest {
 
     @Test
     fun quotaGridDensifiesForLandscapeAndTabletWidths() {
-        assertEquals(1, quotaColumns(419.dp))
-        assertEquals(2, quotaColumns(420.dp))
-        assertEquals(3, quotaColumns(720.dp))
-        assertEquals(4, quotaColumns(1000.dp))
+        // 竖屏（含平板竖屏）保持单列
+        assertEquals(1, quotaColumns(419.dp, 800.dp))
+        assertEquals(1, quotaColumns(768.dp, 1024.dp))
+        // 横屏手机两列，更宽三列
+        assertEquals(2, quotaColumns(740.dp, 360.dp))
+        assertEquals(2, quotaColumns(899.dp, 400.dp))
+        assertEquals(3, quotaColumns(900.dp, 400.dp))
     }
 
     @Test
     fun quotaGridKeepsMultipleRowsInShortLandscapeHeights() {
-        assertEquals(1, quotaRows(419.dp))
-        assertEquals(2, quotaRows(420.dp))
-        assertEquals(3, quotaRows(700.dp))
+        // 横屏单行，竖屏维持原有多行
+        assertEquals(1, quotaRows(360.dp, 740.dp))
+        assertEquals(2, quotaRows(500.dp, 400.dp))
+        assertEquals(2, quotaRows(699.dp, 600.dp))
+        assertEquals(3, quotaRows(800.dp, 600.dp))
     }
 
     @Test
@@ -51,8 +56,9 @@ class QuotasScreenTest {
         assertEquals(4, quotaManagerRows(419.dp))
         assertEquals(6, quotaManagerRows(420.dp))
         assertEquals(8, quotaManagerRows(620.dp))
-        assertEquals(1, quotaManagerColumns(559.dp))
-        assertEquals(2, quotaManagerColumns(560.dp))
-        assertEquals(3, quotaManagerColumns(900.dp))
+        // 竖屏单列，横屏手机两列，更宽三列
+        assertEquals(1, quotaManagerColumns(559.dp, 800.dp))
+        assertEquals(2, quotaManagerColumns(740.dp, 360.dp))
+        assertEquals(3, quotaManagerColumns(840.dp, 400.dp))
     }
 }

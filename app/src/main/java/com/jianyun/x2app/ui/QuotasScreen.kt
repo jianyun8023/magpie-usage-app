@@ -118,8 +118,8 @@ private fun QuotasBody(
             return@Column
         }
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
-            val columns = quotaColumns(maxWidth)
-            val rows = quotaRows(maxHeight)
+            val columns = quotaColumns(maxWidth, maxHeight)
+            val rows = quotaRows(maxHeight, maxWidth)
             val perPage = columns * rows
             val pageCount = ceil(visibleData.size.toDouble() / perPage).toInt().coerceAtLeast(1)
             val safePage = page.coerceIn(0, pageCount - 1)
@@ -161,17 +161,16 @@ private fun QuotasBody(
     }
 }
 
-internal fun quotaColumns(width: Dp): Int = when {
-    width >= 1000.dp -> 4
-    width >= 720.dp -> 3
-    width >= 420.dp -> 2
-    else -> 1
+internal fun quotaColumns(width: Dp, height: Dp): Int = when {
+    width <= height -> 1 // 竖屏保持单列
+    width >= 900.dp -> 3
+    else -> 2 // 横屏手机
 }
 
-internal fun quotaRows(height: Dp): Int = when {
+internal fun quotaRows(height: Dp, width: Dp): Int = when {
+    width > height -> 1 // 横屏高度紧张，单行横向排布
     height >= 700.dp -> 3
-    height >= 420.dp -> 2
-    else -> 1
+    else -> 2 // 竖屏维持原布局
 }
 
 @Composable
@@ -184,7 +183,9 @@ private fun QuotaManager(
     var page by rememberSaveable { mutableStateOf(0) }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val managerMaxWidth = this@BoxWithConstraints.maxWidth
-        val perPage = quotaManagerRows(this@BoxWithConstraints.maxHeight) * quotaManagerColumns(managerMaxWidth)
+        val managerMaxHeight = this@BoxWithConstraints.maxHeight
+        val columns = quotaManagerColumns(managerMaxWidth, managerMaxHeight)
+        val perPage = quotaManagerRows(managerMaxHeight) * columns
         val pageCount = ceil(cards.size.toDouble() / perPage).toInt().coerceAtLeast(1)
         val safePage = page.coerceIn(0, pageCount - 1)
         Column(Modifier.fillMaxSize()) {
@@ -195,7 +196,6 @@ private fun QuotaManager(
                 Text("管理上游", Modifier.weight(1f), fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 InkButton("完成", onClose)
             }
-            val columns = quotaManagerColumns(managerMaxWidth)
             Column(
                 Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -248,10 +248,10 @@ private fun ManagedQuotaCard(
     }
 }
 
-internal fun quotaManagerColumns(width: Dp): Int = when {
-    width >= 900.dp -> 3
-    width >= 560.dp -> 2
-    else -> 1
+internal fun quotaManagerColumns(width: Dp, height: Dp): Int = when {
+    width <= height -> 1 // 竖屏保持单列
+    width >= 840.dp -> 3
+    else -> 2 // 横屏手机
 }
 
 internal fun quotaManagerRows(height: Dp): Int = when {

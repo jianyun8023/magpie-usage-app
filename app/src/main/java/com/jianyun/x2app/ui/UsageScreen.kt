@@ -84,7 +84,8 @@ fun UsageScreen(
 @Composable
 private fun UsageOverview(usage: UsageSummary, modifier: Modifier = Modifier) {
     BoxWithConstraints(modifier.fillMaxSize()) {
-        val twoPane = maxWidth >= 720.dp
+        // 仅横屏（宽大于高）时并排展示，竖屏平板保持单列
+        val twoPane = maxWidth >= 600.dp && maxWidth > maxHeight
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -349,7 +350,12 @@ private fun UsageGroups(usage: UsageSummary, modifier: Modifier = Modifier) {
         else -> usage.agents
     }
     BoxWithConstraints(modifier.fillMaxSize()) {
-        val perPage = if (maxWidth >= 900.dp) 8 else if (maxWidth >= 600.dp) 6 else 4
+        val landscape = maxWidth > maxHeight
+        val perPage = when {
+            landscape && maxWidth >= 840.dp -> 8
+            landscape -> 6
+            else -> 4
+        }
         val pageCount = ceil(items.size.toDouble() / perPage).toInt().coerceAtLeast(1)
         val safePage = page.coerceIn(0, pageCount - 1)
         Column(Modifier.fillMaxSize()) {

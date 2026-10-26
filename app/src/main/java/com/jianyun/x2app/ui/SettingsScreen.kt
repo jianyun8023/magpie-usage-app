@@ -24,6 +24,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.text.font.FontWeight
@@ -60,11 +61,13 @@ fun SettingsScreen(
     )
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        val wide = maxWidth >= 840.dp
+        // 仅横屏限宽并居中，竖屏保持原有全宽布局
+        val landscape = maxWidth >= 600.dp && maxWidth > maxHeight
         Column(
             Modifier
-                .then(if (wide) Modifier.widthIn(max = 1080.dp) else Modifier)
                 .fillMaxSize()
+                .then(if (landscape) Modifier.widthIn(max = 1080.dp) else Modifier)
+                .align(Alignment.TopCenter)
                 .verticalScroll(rememberScrollState())
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -153,7 +156,7 @@ fun SettingsScreen(
             }
             Spacer(Modifier.height(4.dp))
             HorizontalDivider(color = Ink.fg)
-            if (wide) {
+            if (landscape) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                     NetworkSettings(Modifier.weight(1f))
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(16.dp)) {
