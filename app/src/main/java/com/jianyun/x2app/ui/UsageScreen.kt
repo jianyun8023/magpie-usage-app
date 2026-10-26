@@ -84,7 +84,7 @@ fun UsageScreen(
 @Composable
 private fun UsageOverview(usage: UsageSummary, modifier: Modifier = Modifier) {
     BoxWithConstraints(modifier.fillMaxSize()) {
-        // 仅横屏（宽大于高）时并排展示，竖屏平板保持单列
+        // 横屏（宽大于高）时左栏指标+图表、右栏明细；竖屏单列
         val twoPane = maxWidth >= 600.dp && maxWidth > maxHeight
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
@@ -95,20 +95,34 @@ private fun UsageOverview(usage: UsageSummary, modifier: Modifier = Modifier) {
                     Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
-                    SummaryGrid(usage, Modifier.weight(1f))
-                    if (usage.series.isNotEmpty()) {
-                        DailyDetails(usage, Modifier.weight(1f))
+                    Column(
+                        Modifier.weight(1.2f),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                    ) {
+                        SummaryGrid(usage)
+                        if (usage.series.isNotEmpty()) {
+                            SectionTitle(if (usage.period == "today") "每小时调用" else "每日调用")
+                            DayBars(usage.series, usage.period)
+                        }
+                    }
+                    Column(
+                        Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                    ) {
+                        if (usage.series.isNotEmpty()) {
+                            DailyDetails(usage)
+                        }
                     }
                 }
             } else {
                 SummaryGrid(usage)
-            }
-            if (usage.series.isNotEmpty()) {
-                SectionTitle(if (usage.period == "today") "每小时调用" else "每日调用")
-                DayBars(usage.series, usage.period)
-                if (!twoPane) DailyDetails(usage)
-            } else {
-                Text("所选周期没有调用数据", color = Ink.fgSoft, fontSize = 15.sp)
+                if (usage.series.isNotEmpty()) {
+                    SectionTitle(if (usage.period == "today") "每小时调用" else "每日调用")
+                    DayBars(usage.series, usage.period)
+                    DailyDetails(usage)
+                } else {
+                    Text("所选周期没有调用数据", color = Ink.fgSoft, fontSize = 15.sp)
+                }
             }
         }
     }
