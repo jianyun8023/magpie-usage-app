@@ -142,7 +142,11 @@ fun App(settings: SettingsStore) {
                 containerColor = Ink.bg,
                 topBar = {
                     AppTopBar(
-                        title = if (!config.isSet || showSettings) "设置" else "Magpie ${tab.label}",
+                        title = when {
+                            !config.isSet || showSettings -> "设置"
+                            landscape -> tab.label
+                            else -> "Magpie ${tab.label}"
+                        },
                         showRefresh = config.isSet && !showSettings,
                         showBack = config.isSet && showSettings,
                         showSettingsAction = config.isSet && !showSettings && !landscape,
