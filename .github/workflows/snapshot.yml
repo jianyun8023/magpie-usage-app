@@ -1,0 +1,58 @@
+name: Snapshot
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+      - name: Verify native library
+        run: sha256sum --check third_party/appnet/SHA256SUMS
+      - name: Build signed release
+        env:
+          KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEYSTORE_PATH: ${{ runner.temp }}/release.jks
+        run: |
+          umask 077
+          trap 'rm -f "$RELEASE_KEYSTORE_PATH"' EXIT
+          test -n "$KEYSTORE_BASE64"
+          test -n "$RELEASE_KEYSTORE_PASSWORD"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RELEASE_KEYSTORE_PATH"
+          ./gradlew :app:assembleRelease --no-daemon
+      - name: Verify APK and prepare assets
+        run: |
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose app/build/outputs/apk/release/app-release.apk
+          mkdir dist
+          rev=$(git rev-parse --short HEAD)
+          cp app/build/outputs/apk/release/app-release.apk "dist/magpie-usage-snapshot-$rev.apk"
+          cd dist
+          sha256sum *.apk > SHA256SUMS
+      - name: Publish snapshot release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          rev=$(git rev-parse --short HEAD)
+          git tag -f snapshot "$GITHUB_SHA"
+          git push -f origin snapshot
+          if gh release view snapshot >/dev/null 2>&1; then
+            gh release upload snapshot dist/* --clobber
+            gh release edit snapshot --prerelease --latest=false \
+              --title "Snapshot $rev" --notes "Snapshot build of $rev"
+          else
+            gh release create snapshot dist/* --verify-tag --prerelease --latest=false \
+              --title "Snapshot $rev" --notes "Snapshot build of $rev"
+          fi
