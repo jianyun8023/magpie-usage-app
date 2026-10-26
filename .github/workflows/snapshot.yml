@@ -47,7 +47,7 @@ jobs:
         run: |
           rev=$(git rev-parse --short HEAD)
           git tag -f snapshot "$GITHUB_SHA"
-          git push -f origin snapshot
+          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" snapshot
           if gh release view snapshot >/dev/null 2>&1; then
             gh release upload snapshot dist/* --clobber
             gh release edit snapshot --prerelease --latest=false \
