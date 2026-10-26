@@ -165,8 +165,8 @@ fun App(settings: SettingsStore) {
                 ) {
                     Box(
                         Modifier
-                            .fillMaxSize()
                             .then(if (landscape) Modifier.widthIn(max = 1040.dp) else Modifier)
+                            .fillMaxSize()
                     ) {
                         when {
                         !config.isSet || showSettings -> SettingsScreen(

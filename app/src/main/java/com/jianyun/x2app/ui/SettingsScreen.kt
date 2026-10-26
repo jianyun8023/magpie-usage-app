@@ -65,8 +65,8 @@ fun SettingsScreen(
         val landscape = maxWidth >= 600.dp && maxWidth > maxHeight
         Column(
             Modifier
-                .fillMaxSize()
                 .then(if (landscape) Modifier.widthIn(max = 1080.dp) else Modifier)
+                .fillMaxSize()
                 .align(Alignment.TopCenter)
                 .verticalScroll(rememberScrollState())
                 .padding(20.dp),
