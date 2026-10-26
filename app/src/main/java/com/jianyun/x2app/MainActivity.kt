@@ -137,6 +137,7 @@ fun App(settings: SettingsStore) {
                         title = if (!config.isSet || showSettings) "设置" else "Magpie ${tab.label}",
                         showRefresh = config.isSet && !showSettings,
                         showBack = config.isSet && showSettings,
+                        showSettingsAction = config.isSet && !showSettings && !wideNavigation,
                         onRefresh = {
                             when (tab) {
                                 Tab.QUOTAS -> vm.refreshQuotas()
@@ -145,6 +146,7 @@ fun App(settings: SettingsStore) {
                             }
                         },
                         onBack = { showSettings = false },
+                        onSettings = { showSettings = true },
                     )
                 },
                 bottomBar = {
@@ -155,9 +157,9 @@ fun App(settings: SettingsStore) {
             ) { padding ->
                 Box(
                     Modifier
+                        .then(if (wideNavigation) Modifier.widthIn(max = 1040.dp) else Modifier)
                         .fillMaxSize()
                         .padding(padding)
-                        .then(if (wideNavigation) Modifier.widthIn(max = 1040.dp) else Modifier)
                 ) {
                     when {
                         !config.isSet || showSettings -> SettingsScreen(
@@ -210,8 +212,10 @@ private fun AppTopBar(
     title: String,
     showRefresh: Boolean,
     showBack: Boolean,
+    showSettingsAction: Boolean,
     onRefresh: () -> Unit,
     onBack: () -> Unit,
+    onSettings: () -> Unit,
 ) {
     Column {
         Row(
@@ -230,6 +234,10 @@ private fun AppTopBar(
             )
             if (showRefresh) {
                 InkButton("刷新", onRefresh)
+            }
+            if (showSettingsAction) {
+                Spacer(Modifier.padding(horizontal = 4.dp))
+                InkButton("设置", onSettings)
             }
             if (showBack) {
                 InkButton("返回", onBack)

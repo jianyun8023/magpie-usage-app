@@ -63,8 +63,8 @@ fun SettingsScreen(
         val wide = maxWidth >= 840.dp
         Column(
             Modifier
-                .fillMaxSize()
                 .then(if (wide) Modifier.widthIn(max = 1080.dp) else Modifier)
+                .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),

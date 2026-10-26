@@ -95,7 +95,9 @@ private fun UsageOverview(usage: UsageSummary, modifier: Modifier = Modifier) {
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     SummaryGrid(usage, Modifier.weight(1f))
-                    DailyDetails(usage, Modifier.weight(1f))
+                    if (usage.series.isNotEmpty()) {
+                        DailyDetails(usage, Modifier.weight(1f))
+                    }
                 }
             } else {
                 SummaryGrid(usage)
