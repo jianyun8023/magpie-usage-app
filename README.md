@@ -2,7 +2,7 @@
 
 面向 Android 墨水屏设备的 Magpie 客户端，查看额度、请求流水和用量汇总。使用 Kotlin / Jetpack Compose 构建，采用黑白界面，内置 WireGuard 与 Tailscale 网络接入，可连接自建 Headscale。
 
-[项目介绍与演示](https://jianyun8023.github.io/magpie-usage-app/) · [GitHub 仓库](https://github.com/jianyun8023/magpie-usage-app)
+[下载 v0.2.1](https://github.com/jianyun8023/magpie-usage-app/releases/tag/v0.2.1) · [项目介绍与演示](https://jianyun8023.github.io/magpie-usage-app/) · [GitHub 仓库](https://github.com/jianyun8023/magpie-usage-app)
 
 ### 最新界面
 
@@ -62,7 +62,7 @@
 
 ### 应用内网络
 
-在「服务器设置 → 网络接入」中选择直连、WireGuard 或 Tailscale。WireGuard 和 Tailscale 仅承载本应用的服务请求，不创建 Android 系统 VPN，也不改变其他应用的网络。
+在「服务器设置 → 网络接入」中选择直连、WireGuard 或 Tailscale 配置面板，再点击面板内的「使用直连」或连接按钮。切换配置面板不会改变当前连接，当前网络状态显示在面板上方。WireGuard 和 Tailscale 仅承载本应用的服务请求，不创建 Android 系统 VPN，也不改变其他应用的网络。
 
 - **WireGuard**：导入 `.conf` 后连接；访问范围由配置中的 `AllowedIPs` 等路由设置决定。
 - **Tailscale**：控制服务器留空使用官方服务；连接 Headscale 时填写其控制服务器 URL，保存并按授权页面完成登录。服务地址支持 Tailnet IP 与网络内的 MagicDNS 名称；未知域名不会回落系统 DNS。更换控制服务器会断开并退出当前账号。
@@ -118,6 +118,6 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 推送 main 或提交 PR 时，GitHub Actions 自动构建 Debug APK、运行单元测试与 lint，并保留 APK 和检查报告 14 天。真机 instrumentation 测试仍需连接 ARM 设备运行。
 
-版本标签（例如 `v0.1.0`）须与 `versionName` 一致，检查通过后构建签名 Release APK，发布到 GitHub Release，附带 SHA256 校验文件。签名使用仓库 Secrets `RELEASE_KEYSTORE_BASE64` 和 `RELEASE_KEYSTORE_PASSWORD`；后续版本必须沿用同一密钥。本地签名备份位于被 Git 忽略的 `.release-signing/`，不要提交或公开。
+版本标签（例如 `v0.2.1`）须与 `versionName` 一致，检查通过后构建签名 Release APK，发布到 GitHub Release，附带 SHA256 校验文件。签名使用仓库 Secrets `RELEASE_KEYSTORE_BASE64` 和 `RELEASE_KEYSTORE_PASSWORD`；后续版本必须沿用同一密钥。本地签名备份位于被 Git 忽略的 `.release-signing/`，不要提交或公开。
 
 概览及 Agent、模型、账号分组的“总计 Token”均为输入 + 输出 + 缓存读取 + 缓存写入，与 Magpie「含缓存」口径一致；推理 Token 已计入输出，不重复加入。正式 Release 签名与本地 Debug 签名不同，切换安装前应保存原有配置。
