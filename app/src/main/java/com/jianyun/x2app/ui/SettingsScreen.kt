@@ -3,12 +3,12 @@ package com.jianyun.x2app.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
@@ -37,6 +37,7 @@ import com.jianyun.x2app.data.normalizedServerConfig
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(
     config: ServerConfig,
@@ -75,114 +76,107 @@ fun SettingsScreen(
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text("服务器设置", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Ink.fg)
-            Text(
-                "填写 Magpie 模型网关地址，并使用已开启局域网共享的网关 API Key。",
-                fontSize = 15.sp,
-                color = Ink.fgSoft,
-                lineHeight = 22.sp,
-            )
-            OutlinedTextField(
-                value = url,
-                onValueChange = { url = it; testResult = null; validationError = null },
-                label = { Text("地址，如 192.0.2.10:3425") },
-                modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 56.dp),
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                shape = RectangleShape,
-                colors = fieldColors,
-                enabled = !testing,
-                isError = validationError != null,
-            )
-            OutlinedTextField(
-                value = key,
-                onValueChange = { key = it; testResult = null; validationError = null },
-                label = { Text("网关 API Key") },
-                modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 56.dp),
-                singleLine = true,
-                visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
-                shape = RectangleShape,
-                colors = fieldColors,
-                enabled = !testing,
-            )
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                InkButton(
-                    if (testing) "正在测试" else "测试连接",
-                    {
-                        scope.launch {
-                            testing = true
-                            try {
-                                val normalized = normalizedServerConfig(url, key)
-                                validationError = null
-                                testResult = onTest(normalized.baseUrl, normalized.webKey)
-                            } catch (e: CancellationException) {
-                                throw e
-                            } catch (e: IllegalArgumentException) {
-                                testResult = null
-                                validationError = e.message
-                            } catch (_: Exception) {
-                                testResult = "连接测试失败，请检查网络与服务器设置后重试"
-                            } finally {
-                                testing = false
-                            }
-                        }
-                    },
-                    Modifier.weight(1f),
-                    enabled = !testing,
-                )
-                InkButton(
-                    "保存",
-                    {
-                        try {
-                            val normalized = normalizedServerConfig(url, key)
-                            validationError = null
-                            onSave(normalized.baseUrl, normalized.webKey)
-                        } catch (e: IllegalArgumentException) {
-                            testResult = null
-                            validationError = e.message
-                        }
-                    },
-                    Modifier.weight(1f),
-                    selected = true,
-                    enabled = !testing,
-                )
-            }
-            validationError?.let { Text(it, color = Ink.danger) }
-            testResult?.let {
-                Text(
-                    it,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Ink.fg,
-                    lineHeight = 22.sp,
-                )
-            }
-            Spacer(Modifier.height(4.dp))
-            HorizontalDivider(color = Ink.fg)
-            if (landscape) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                    NetworkSettings(Modifier.weight(1f))
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        Text("关于", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Ink.fg)
-                        Text(
-                            "Magpie 用量 · 查看剩余额度、请求记录与用量汇总。\n直接读取 Magpie 网关的用量与额度。",
-                            fontSize = 14.sp,
-                            color = Ink.fgSoft,
-                            lineHeight = 21.sp,
+            FlowRow(
+                Modifier.fillMaxWidth(),
+                maxItemsInEachRow = if (landscape) 2 else 1,
+                horizontalArrangement = Arrangement.spacedBy(24.dp),
+                verticalArrangement = Arrangement.spacedBy(24.dp),
+            ) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Text("服务器设置", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Ink.fg)
+                    Text(
+                        "填写 Magpie 模型网关地址，并使用已开启局域网共享的网关 API Key。",
+                        fontSize = 15.sp,
+                        color = Ink.fgSoft,
+                        lineHeight = 22.sp,
+                    )
+                    OutlinedTextField(
+                        value = url,
+                        onValueChange = { url = it; testResult = null; validationError = null },
+                        label = { Text("地址，如 192.0.2.10:3425") },
+                        modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 56.dp),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                        shape = RectangleShape,
+                        colors = fieldColors,
+                        enabled = !testing,
+                        isError = validationError != null,
+                    )
+                    OutlinedTextField(
+                        value = key,
+                        onValueChange = { key = it; testResult = null; validationError = null },
+                        label = { Text("网关 API Key") },
+                        modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 56.dp),
+                        singleLine = true,
+                        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                        shape = RectangleShape,
+                        colors = fieldColors,
+                        enabled = !testing,
+                    )
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        InkButton(
+                            if (testing) "正在测试" else "测试连接",
+                            {
+                                scope.launch {
+                                    testing = true
+                                    try {
+                                        val normalized = normalizedServerConfig(url, key)
+                                        validationError = null
+                                        testResult = onTest(normalized.baseUrl, normalized.webKey)
+                                    } catch (e: CancellationException) {
+                                        throw e
+                                    } catch (e: IllegalArgumentException) {
+                                        testResult = null
+                                        validationError = e.message
+                                    } catch (_: Exception) {
+                                        testResult = "连接测试失败，请检查网络与服务器设置后重试"
+                                    } finally {
+                                        testing = false
+                                    }
+                                }
+                            },
+                            Modifier.weight(1f),
+                            enabled = !testing,
+                        )
+                        InkButton(
+                            "保存",
+                            {
+                                try {
+                                    val normalized = normalizedServerConfig(url, key)
+                                    validationError = null
+                                    onSave(normalized.baseUrl, normalized.webKey)
+                                } catch (e: IllegalArgumentException) {
+                                    testResult = null
+                                    validationError = e.message
+                                }
+                            },
+                            Modifier.weight(1f),
+                            selected = true,
+                            enabled = !testing,
                         )
                     }
+                    validationError?.let { Text(it, color = Ink.danger) }
+                    testResult?.let {
+                        Text(
+                            it,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Ink.fg,
+                            lineHeight = 22.sp,
+                        )
+                    }
+                    if (!landscape) HorizontalDivider(color = Ink.fg)
                 }
-            } else {
-                NetworkSettings()
-                HorizontalDivider(color = Ink.fg)
-                Text("关于", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Ink.fg)
-                Text(
-                    "Magpie 用量 · 查看剩余额度、请求记录与用量汇总。\n直接读取 Magpie 网关的用量与额度。",
-                    fontSize = 14.sp,
-                    color = Ink.fgSoft,
-                    lineHeight = 21.sp,
-                )
+                NetworkSettings(Modifier.weight(1f))
             }
+            HorizontalDivider(color = Ink.fg)
+            Text("关于", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Ink.fg)
+            Text(
+                "Magpie 用量 · 查看剩余额度、请求记录与用量汇总。\n直接读取 Magpie 网关的用量与额度。",
+                fontSize = 14.sp,
+                color = Ink.fgSoft,
+                lineHeight = 21.sp,
+            )
         }
     }
 }

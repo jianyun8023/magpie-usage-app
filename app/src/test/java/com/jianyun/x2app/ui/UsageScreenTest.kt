@@ -52,7 +52,7 @@ class UsageScreenTest {
     fun dailyMetricsIncludeAllAvailableFields() {
         val day = UsageSummary.DayPoint(calls = 1_234_567, errors = 2, input = 300, output = 40, cost = 0.001)
         assertEquals(listOf(
-            UsageMetric("调用", "1234567"), UsageMetric("费用", "$0.001"),
+            UsageMetric("调用", "1234567"), UsageMetric("已计价费用", "$0.001"),
             UsageMetric("错误", "2", true), UsageMetric("输入 Token", "300"),
             UsageMetric("输出 Token", "40"),
         ), dailyMetrics(day))
@@ -73,7 +73,7 @@ class UsageScreenTest {
         assertEquals("200", metrics["缓存读取 Token"])
         assertEquals("0", metrics["缓存写入 Token"])
         assertEquals("0", metrics["错误"])
-        assertEquals("$0.00", metrics["费用"])
+        assertEquals("$0.00", metrics["已计价费用"])
     }
 
     @Test

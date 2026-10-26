@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -17,6 +16,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -44,6 +44,11 @@ fun NetworkSettings(modifier: Modifier = Modifier) {
     var openLoginWhenReady by rememberSaveable { mutableStateOf(false) }
     var operationError by remember { mutableStateOf<String?>(null) }
     val busy = wgState.busy || tsState.busy
+    var panelName by rememberSaveable(mode) {
+        mutableStateOf(if (mode == AppNetworkMode.UNAVAILABLE) AppNetworkMode.DIRECT.name else mode.name)
+    }
+    val panel = AppNetworkMode.restored(panelName)
+    val panelState = rememberSaveableStateHolder()
 
     val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let(engine::importWireGuard)
@@ -101,36 +106,44 @@ fun NetworkSettings(modifier: Modifier = Modifier) {
         operationError?.let { Text(it, color = Ink.danger) }
 
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            InkButton("直连", { run { engine.useDirect() } }, Modifier.weight(1f),
-                selected = mode == AppNetworkMode.DIRECT, enabled = !busy)
-            InkButton("WireGuard", { run { engine.connectWireGuard() } }, Modifier.weight(1f),
-                selected = mode == AppNetworkMode.WIREGUARD, enabled = !busy)
-            InkButton("Tailscale", { run { engine.connectTailscale() } }, Modifier.weight(1f),
-                selected = mode == AppNetworkMode.TAILSCALE, enabled = !busy)
+            listOf(AppNetworkMode.DIRECT to "直连", AppNetworkMode.WIREGUARD to "WireGuard",
+                AppNetworkMode.TAILSCALE to "Tailscale").forEach { (value, label) ->
+                InkButton(label, { panelName = value.name }, Modifier.weight(1f),
+                    selected = panel == value, enabled = !busy)
+            }
         }
 
-        WireGuardSettings(
-            state = wgState,
-            busy = busy,
-            mode = mode,
-            onImport = { importer.launch(arrayOf("*/*")) },
-            onConnect = { run(reportFailure = false) { engine.connectWireGuard() } },
-            onDisconnect = { run(reportFailure = false) { engine.disconnectWireGuard() } },
-            onDelete = { engine.deleteWireGuard() },
-        )
-        HorizontalDivider(color = Ink.line)
-        TailscaleSettings(
-            state = tsState,
-            busy = busy,
-            onLogin = { openLoginWhenReady = true; run(reportFailure = false) { engine.loginTailscale() } },
-            onConnect = { run(reportFailure = false) { engine.connectTailscale() } },
-            onDisconnect = { openLoginWhenReady = false; run(reportFailure = false) { engine.disconnectTailscale() } },
-            onLogout = { openLoginWhenReady = false; run(reportFailure = false) { engine.logoutTailscale() } },
-            onOpenAuthorization = ::openAuthorization,
-            onSaveControlUrl = { value ->
-                openLoginWhenReady = false
-                run(reportFailure = false) { engine.setControlUrl(value) }
-            },
-        )
+        panelState.SaveableStateProvider(panelName) {
+            when (panel) {
+                AppNetworkMode.DIRECT, AppNetworkMode.UNAVAILABLE -> InkButton(
+                    if (mode == AppNetworkMode.DIRECT) "当前使用直连" else "使用直连",
+                    { run { engine.useDirect() } },
+                    Modifier.fillMaxWidth(),
+                    enabled = !busy && mode != AppNetworkMode.DIRECT,
+                )
+                AppNetworkMode.WIREGUARD -> WireGuardSettings(
+                    state = wgState,
+                    busy = busy,
+                    mode = mode,
+                    onImport = { importer.launch(arrayOf("*/*")) },
+                    onConnect = { run(reportFailure = false) { engine.connectWireGuard() } },
+                    onDisconnect = { run(reportFailure = false) { engine.disconnectWireGuard() } },
+                    onDelete = { engine.deleteWireGuard() },
+                )
+                AppNetworkMode.TAILSCALE -> TailscaleSettings(
+                    state = tsState,
+                    busy = busy,
+                    onLogin = { openLoginWhenReady = true; run(reportFailure = false) { engine.loginTailscale() } },
+                    onConnect = { run(reportFailure = false) { engine.connectTailscale() } },
+                    onDisconnect = { openLoginWhenReady = false; run(reportFailure = false) { engine.disconnectTailscale() } },
+                    onLogout = { openLoginWhenReady = false; run(reportFailure = false) { engine.logoutTailscale() } },
+                    onOpenAuthorization = ::openAuthorization,
+                    onSaveControlUrl = { value ->
+                        openLoginWhenReady = false
+                        run(reportFailure = false) { engine.setControlUrl(value) }
+                    },
+                )
+            }
+        }
     }
 }

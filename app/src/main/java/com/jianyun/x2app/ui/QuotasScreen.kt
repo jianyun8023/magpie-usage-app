@@ -32,6 +32,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -328,7 +329,12 @@ internal fun quotaResetSummaryLines(card: QuotaCard): List<String> {
 
 internal fun quotaResetEachLines(card: QuotaCard): List<String> {
     if (card.hasError) return emptyList()
-    return card.resets?.each.orEmpty().mapNotNull { reset ->
+    val resets = card.resets ?: return emptyList()
+    val single = resets.each.singleOrNull()
+    if (single != null && single.until == resets.until && single.window !in listOf("fiveHour", "weekly")) {
+        return emptyList()
+    }
+    return resets.each.mapNotNull { reset ->
         reset.until?.takeIf { it.isNotBlank() }?.let { until ->
             when (reset.window) {
                 "fiveHour" -> "5小时重置额度到期 ${fmtReset(until)}"
@@ -491,66 +497,76 @@ private fun QuotaDetails(card: QuotaCard, onClose: () -> Unit) {
             Text(quotaDisplayTitle(card), Modifier.weight(1f), fontSize = 20.sp,
                 fontWeight = FontWeight.Bold, color = Ink.fg)
         }
-        SelectionContainer(Modifier.weight(1f).fillMaxWidth()) {
-            Column(
-                Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    val overview = listOfNotNull(card.from, card.plan, card.user)
-                        .filter { it.isNotBlank() && it != quotaDisplayTitle(card) }.distinct()
-                    overview.forEach { Text(it, fontSize = 16.sp, color = Ink.fgSoft) }
-                    card.error?.let {
-                        Text(it, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Ink.fg)
-                    }
-                    if (card.isBalance || card.balance != null) {
-                        Text(card.balance ?: "—", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = Ink.fg)
-                    }
-                    card.balanceSplit.forEach {
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                balanceSplitLabel(it.label),
-                                Modifier.weight(1f).padding(end = 8.dp),
-                                fontSize = 16.sp,
-                                color = Ink.fgSoft,
-                            )
-                            Text(
-                                it.text,
-                                Modifier.weight(1f),
-                                fontSize = 16.sp,
-                                color = Ink.fg,
-                                textAlign = TextAlign.End,
-                            )
+        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+            val landscape = LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+            val columns = if (landscape && maxWidth >= 600.dp) 2 else 1
+            SelectionContainer {
+                Column(
+                    Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        val overview = listOfNotNull(card.from, card.plan, card.user)
+                            .filter { it.isNotBlank() && it != quotaDisplayTitle(card) }.distinct()
+                        overview.forEach { Text(it, fontSize = 16.sp, color = Ink.fgSoft) }
+                        card.error?.let {
+                            Text(it, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Ink.fg)
+                        }
+                        if (card.isBalance || card.balance != null) {
+                            Text(card.balance ?: "—", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = Ink.fg)
+                        }
+                        card.balanceSplit.forEach {
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    balanceSplitLabel(it.label),
+                                    Modifier.weight(1f).padding(end = 8.dp),
+                                    fontSize = 16.sp,
+                                    color = Ink.fgSoft,
+                                )
+                                Text(
+                                    it.text,
+                                    Modifier.weight(1f),
+                                    fontSize = 16.sp,
+                                    color = Ink.fg,
+                                    textAlign = TextAlign.End,
+                                )
+                            }
+                        }
+                        card.until?.let { Text("到期 ${fmtReset(it)}", fontSize = 14.sp, color = Ink.fgSoft) }
+                        quotaResetSummaryLines(card).forEach { line ->
+                            Text(line, fontSize = 14.sp, color = Ink.fgSoft)
+                        }
+                        quotaResetEachLines(card).forEach { line ->
+                            Text(line, fontSize = 14.sp, color = Ink.fgSoft)
+                        }
+                        card.readAt?.takeIf { it.isNotBlank() }?.let {
+                            Text("数据时间 ${fmtReset(it)}", fontSize = 14.sp, color = Ink.fgSoft)
                         }
                     }
-                    card.until?.let { Text("到期 ${fmtReset(it)}", fontSize = 14.sp, color = Ink.fgSoft) }
-                    quotaResetSummaryLines(card).forEach { line ->
-                        Text(line, fontSize = 14.sp, color = Ink.fgSoft)
+                    val windows = windowsShown(card).sortedBy {
+                        if (it.unlimited == true) 101 else remainingPercent(it) ?: 101
                     }
-                    quotaResetEachLines(card).forEach { line ->
-                        Text(line, fontSize = 14.sp, color = Ink.fgSoft)
+                    if (windows.isEmpty() && !card.isBalance) {
+                        Text("暂无额度窗口", fontSize = 16.sp, color = Ink.fgSoft)
                     }
-                    card.readAt?.takeIf { it.isNotBlank() }?.let {
-                        Text("数据时间 ${fmtReset(it)}", fontSize = 14.sp, color = Ink.fgSoft)
+                    windows.chunked(columns).forEach { row ->
+                        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                            row.forEach { window ->
+                                Column(Modifier.weight(1f).fillMaxHeight().border(1.dp, Ink.line).padding(16.dp)) {
+                                    WindowRow(window)
+                                }
+                            }
+                            repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
+                        }
                     }
-                }
-                val windows = windowsShown(card).sortedBy {
-                    if (it.unlimited == true) 101 else remainingPercent(it) ?: 101
-                }
-                if (windows.isEmpty() && !card.isBalance) {
-                    Text("暂无额度窗口", fontSize = 16.sp, color = Ink.fgSoft)
-                }
-                windows.forEach { window ->
-                    Column(Modifier.fillMaxWidth().border(1.dp, Ink.line).padding(16.dp)) {
-                        WindowRow(window)
+                    InkButton(
+                        if (diagnosticsExpanded) "收起原始数据" else "原始数据",
+                        { diagnosticsExpanded = !diagnosticsExpanded },
+                    )
+                    if (diagnosticsExpanded) {
+                        Text(quotaDetailText(card), fontSize = 14.sp, lineHeight = 22.sp, color = Ink.fgSoft)
                     }
-                }
-                InkButton(
-                    if (diagnosticsExpanded) "收起原始数据" else "原始数据",
-                    { diagnosticsExpanded = !diagnosticsExpanded },
-                )
-                if (diagnosticsExpanded) {
-                    Text(quotaDetailText(card), fontSize = 14.sp, lineHeight = 22.sp, color = Ink.fgSoft)
                 }
             }
         }
@@ -601,7 +617,7 @@ internal fun quotaDetailText(card: QuotaCard): String = buildList {
 fun WindowRow(window: QuotaWindow, summary: Boolean = false) {
     val remainingPct = remainingPercent(window)
     val low = remainingPct != null && remainingPct <= 10
-    val title = window.pool?.takeIf { it.isNotBlank() } ?: window.name.ifBlank { "未命名窗口" }
+    val title = quotaWindowTitle(window, summary)
     val value = when {
         window.unlimited == true -> "不限量"
         remainingPct != null -> "剩 $remainingPct%" + if (low) " 偏低" else ""
@@ -652,6 +668,16 @@ fun WindowRow(window: QuotaWindow, summary: Boolean = false) {
         if (holdsDetails.isNotEmpty()) {
             Text(holdsDetails, fontSize = 14.sp, color = Ink.fgSoft)
         }
+    }
+}
+
+internal fun quotaWindowTitle(window: QuotaWindow, summary: Boolean = false): String {
+    val name = window.name.trim()
+    val pool = window.pool?.trim()?.takeIf { it.isNotEmpty() }
+    return when {
+        pool == null -> name.ifBlank { "未命名窗口" }
+        summary || name.isBlank() || name.equals(pool, ignoreCase = true) -> pool
+        else -> "$pool · $name"
     }
 }
 

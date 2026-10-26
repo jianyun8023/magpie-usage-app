@@ -1,6 +1,7 @@
 package com.jianyun.x2app
 
 import android.os.Bundle
+import androidx.activity.compose.BackHandler
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -98,6 +99,8 @@ fun App(settings: SettingsStore) {
     val landscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
     val engine = remember { com.jianyun.x2app.vpn.AppNetworkEngine.get(context) }
     val tailscaleState by engine.tailscale.collectAsState()
+
+    BackHandler(enabled = config.isSet && showSettings) { showSettings = false }
 
     LaunchedEffect(config, tab, showSettings, tailscaleState.connected) {
         if (config.isSet && !showSettings) {

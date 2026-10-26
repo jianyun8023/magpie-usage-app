@@ -174,6 +174,31 @@ class QuotaSummaryDetailsTest {
         assertEquals(emptyList<String>(), quotaResetEachLines(QuotaCard(provider = "codex", error = "down", resets = resets)))
     }
 
+    @Test
+    fun singleResetExpiryDoesNotRepeatSummaryButKeepsWindowAndDifferentExpiry() {
+        val until = "2030-01-01T00:00:00Z"
+        val resets = QuotaResets(count = 1, until = until, each = listOf(QuotaResetTime(until = until)))
+        val card = QuotaCard(provider = "codex", resets = resets)
+        assertTrue(quotaResetSummaryLines(card).any { it.contains(localStamp(until)) })
+        assertTrue(quotaResetEachLines(card).isEmpty())
+        assertEquals(listOf("每周重置额度到期 ${localStamp(until)}"),
+            quotaResetEachLines(card.copy(resets = resets.copy(each = listOf(QuotaResetTime(until, "weekly"))))))
+        val later = "2030-02-01T00:00:00Z"
+        assertEquals(listOf("重置额度到期 ${localStamp(later)}"),
+            quotaResetEachLines(card.copy(resets = resets.copy(each = listOf(QuotaResetTime(later))))))
+    }
+
+    @Test
+    fun detailWindowTitleDistinguishesPoolMembersWithoutRepeatingSameName() {
+        val window = QuotaWindow(name = "weekly", pool = "Gemini")
+        assertEquals("Gemini · weekly", quotaWindowTitle(window))
+        assertEquals("Gemini", quotaWindowTitle(window, summary = true))
+        assertEquals("Gemini", quotaWindowTitle(window.copy(name = " gemini ")))
+        assertEquals("Gemini", quotaWindowTitle(window.copy(name = "")))
+        assertEquals("weekly", quotaWindowTitle(window.copy(pool = " ")))
+        assertEquals("未命名窗口", quotaWindowTitle(QuotaWindow()))
+    }
+
     private fun localStamp(iso: String): String = java.time.format.DateTimeFormatter
         .ofPattern("MM-dd HH:mm").format(java.time.Instant.parse(iso).atZone(java.time.ZoneId.systemDefault()))
 }

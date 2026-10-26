@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -257,7 +259,7 @@ internal fun dailyDetailDate(day: UsageSummary.DayPoint, period: String = ""): S
 
 internal fun dailyMetrics(day: UsageSummary.DayPoint): List<UsageMetric> = listOf(
     UsageMetric("调用", day.calls.toString()),
-    UsageMetric("费用", formatUsageCost(day.cost)),
+    UsageMetric("已计价费用", formatUsageCost(day.cost)),
     UsageMetric("错误", day.errors.toString(), day.errors > 0),
     UsageMetric("输入 Token", fmtNum(day.input)),
     UsageMetric("输出 Token", fmtNum(day.output)),
@@ -278,15 +280,63 @@ private fun DailyDetails(usage: UsageSummary, modifier: Modifier = Modifier) {
             Modifier.fillMaxWidth(),
         )
         if (expanded) {
-            Column(Modifier.fillMaxWidth().border(1.dp, Ink.line).padding(12.dp)) {
-                dailyDetailsPage(series, safePage).forEach { day ->
-                    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-                        SectionTitle(dailyDetailDate(day, usage.period))
-                        MetricGrid(dailyMetrics(day))
+            val fontScale = LocalDensity.current.fontScale
+            BoxWithConstraints(Modifier.fillMaxWidth().border(1.dp, Ink.line).padding(12.dp)) {
+                val table = maxWidth / fontScale >= 360.dp
+                val wide = maxWidth / fontScale >= 680.dp
+                Column {
+                    if (table) {
+                        DailyTableRow(
+                            listOf("时段", "调用", "已计价费用", "错误", "输入 Token", "输出 Token"),
+                            wide, header = true,
+                        )
+                    }
+                    dailyDetailsPage(series, safePage).forEach { day ->
+                        if (table) {
+                            Column(Modifier.padding(vertical = 8.dp)) {
+                                DailyTableRow(
+                                    listOf(dailyDetailDate(day, usage.period), day.calls.toString(),
+                                        formatUsageCost(day.cost), if (day.errors > 0) "! ${day.errors}" else "0",
+                                        fmtNum(day.input), fmtNum(day.output)),
+                                    wide,
+                                )
+                                if (!wide) {
+                                    Row(Modifier.fillMaxWidth().padding(top = 4.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                        listOf("输入 Token" to day.input, "输出 Token" to day.output).forEach { (label, value) ->
+                                            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                Text(label, fontSize = 13.sp, color = Ink.fgSoft)
+                                                Text(fmtNum(value), fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            HorizontalDivider(color = Ink.line)
+                        } else {
+                            Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                                SectionTitle(dailyDetailDate(day, usage.period))
+                                MetricGrid(dailyMetrics(day))
+                            }
+                        }
                     }
                 }
             }
             if (pageCount > 1) PageControls(safePage, pageCount, { page = it })
+        }
+    }
+}
+
+@Composable
+private fun DailyTableRow(values: List<String>, wide: Boolean, header: Boolean = false) {
+    val weights = if (wide) listOf(1.4f, 1f, 1.4f, 0.7f, 1.2f, 1.2f) else listOf(1.4f, 1f, 1.4f, 0.7f)
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        weights.forEachIndexed { index, weight ->
+            Text(values[index], Modifier.weight(weight).padding(end = 8.dp),
+                fontSize = if (header) 13.sp else if (index == 0) 18.sp else 22.sp,
+                fontWeight = if (header) FontWeight.Normal else FontWeight.Bold,
+                color = if (header) Ink.fgSoft else Ink.fg)
         }
     }
 }
@@ -348,7 +398,7 @@ internal fun groupDescription(item: UsageSummary.UsageGroup): String {
 
 internal fun groupMetrics(item: UsageSummary.UsageGroup): List<UsageMetric> = listOf(
     UsageMetric("调用", item.calls.toString()),
-    UsageMetric("费用", formatUsageCost(item.cost)),
+    UsageMetric("已计价费用", formatUsageCost(item.cost)),
     UsageMetric("错误", item.errors.toString(), item.errors > 0),
     UsageMetric("总计 Token", fmtNum(item.input + item.output + item.cacheRead + item.cacheWrite)),
     UsageMetric("输入 Token", fmtNum(item.input)),
@@ -366,8 +416,10 @@ private fun UsageGroups(usage: UsageSummary, modifier: Modifier = Modifier) {
         "accounts" -> usage.accounts
         else -> usage.agents
     }
+    val fontScale = LocalDensity.current.fontScale
     BoxWithConstraints(modifier.fillMaxSize()) {
         val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+        val table = landscape && maxWidth / fontScale >= 720.dp
         val perPage = when {
             landscape && maxWidth >= 840.dp -> 8
             landscape -> 6
@@ -384,6 +436,10 @@ private fun UsageGroups(usage: UsageSummary, modifier: Modifier = Modifier) {
                     InkButton(label, { group = value }, Modifier.weight(1f), selected = group == value)
                 }
             }
+            if (usage.unpriced > 0) {
+                Text("所选周期另有 ${usage.unpriced} 次调用未计价",
+                    Modifier.padding(horizontal = 16.dp, vertical = 4.dp), fontSize = 13.sp, color = Ink.fgSoft)
+            }
             key(group, usage.period, usage.since, safePage) { Column(
                 Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
             ) {
@@ -392,12 +448,55 @@ private fun UsageGroups(usage: UsageSummary, modifier: Modifier = Modifier) {
                         Text("此分组暂无数据", color = Ink.fgSoft, fontSize = 16.sp)
                     }
                 } else {
-                    items.drop(safePage * perPage).take(perPage).forEach { item -> GroupRow(item) }
+                    if (table) {
+                        GroupTableHeader(when (group) { "models" -> "模型"; "accounts" -> "账号"; else -> "Agent" })
+                    }
+                    items.drop(safePage * perPage).take(perPage).forEach { item ->
+                        if (table) GroupTableItem(item) else GroupRow(item)
+                    }
                 }
             } }
-            PageControls(safePage, pageCount, { page = it })
+            if (pageCount > 1) PageControls(safePage, pageCount, { page = it })
         }
     }
+}
+
+private val groupTableWeights = listOf(2.4f, 0.9f, 1.4f, 0.8f, 1.25f, 1.1f)
+
+@Composable
+private fun GroupTableHeader(title: String) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
+        listOf(title, "调用", "已计价费用", "错误", "总计 Token").forEachIndexed { index, label ->
+            Text(label, Modifier.weight(groupTableWeights[index]).padding(end = 8.dp),
+                fontSize = 13.sp, color = Ink.fgSoft)
+        }
+        Spacer(Modifier.weight(groupTableWeights.last()))
+    }
+}
+
+@Composable
+private fun GroupTableItem(item: UsageSummary.UsageGroup) {
+    var expanded by rememberSaveable(item.id, item.model, item.name, item.provider, item.host) { mutableStateOf(false) }
+    val metrics = groupMetrics(item)
+    Column(Modifier.fillMaxWidth().border(1.dp, Ink.line).padding(12.dp)) {
+        Row(Modifier.fillMaxWidth().defaultMinSize(minHeight = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(groupTableWeights[0]).padding(end = 12.dp)) {
+                Text(groupTitle(item), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Ink.fg)
+                groupDescription(item).takeIf { it.isNotBlank() }?.let {
+                    Text(it, fontSize = 13.sp, color = Ink.fgSoft)
+                }
+            }
+            metrics.take(4).forEachIndexed { index, metric ->
+                Text(if (metric.emphasize) "! ${metric.value}" else metric.value,
+                    Modifier.weight(groupTableWeights[index + 1]).padding(end = 8.dp),
+                    fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Ink.fg)
+            }
+            InkButton(if (expanded) "收起 Token" else "Token 明细", { expanded = !expanded },
+                Modifier.weight(groupTableWeights.last()))
+        }
+        if (expanded) MetricGrid(metrics.drop(4))
+    }
+    Spacer(Modifier.height(8.dp))
 }
 
 

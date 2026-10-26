@@ -14,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -42,7 +43,7 @@ fun TailscaleSettings(
     onSaveControlUrl: (String) -> Unit,
 ) {
     var confirmLogout by remember { mutableStateOf(false) }
-    var controlUrl by remember(state.controlUrl) { mutableStateOf(state.controlUrl) }
+    var controlUrl by rememberSaveable(state.controlUrl) { mutableStateOf(state.controlUrl) }
     var pendingControlUrl by remember { mutableStateOf<String?>(null) }
     val needsLogin = state.backendState in listOf("NoState", "NeedsLogin", "InUseOtherUser")
     val primaryAction = tailscalePrimaryAction(state)
