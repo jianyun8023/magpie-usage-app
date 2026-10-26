@@ -3,22 +3,22 @@ package com.jianyun.x2app
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationRail
-import androidx.compose.material3.NavigationRailItem
-import androidx.compose.material3.NavigationRailItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
@@ -33,6 +33,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
@@ -261,44 +262,70 @@ private fun WideNavigationRail(
     onSelect: (Tab) -> Unit,
     onSettings: () -> Unit,
 ) {
-    NavigationRail(
-        containerColor = Ink.bg,
-        contentColor = Ink.fg,
+    Column(
+        Modifier
+            .fillMaxHeight()
+            .width(96.dp)
+            .background(Ink.bg)
+            .selectableGroup(),
     ) {
         Text(
             "Magpie",
-            Modifier.padding(start = 18.dp, top = 18.dp, bottom = 14.dp),
-            fontSize = 17.sp,
+            Modifier.padding(start = 20.dp, top = 22.dp, bottom = 20.dp),
+            fontSize = 18.sp,
             fontWeight = FontWeight.Bold,
+            color = Ink.fg,
         )
+        HorizontalDivider(color = Ink.line, thickness = 1.dp)
         Tab.entries.forEach { item ->
-            NavigationRailItem(
+            RailEntry(
+                label = item.label,
                 selected = selected == item,
                 onClick = { onSelect(item) },
-                icon = { Text(if (selected == item) "■" else "□") },
-                label = { Text(item.label) },
-                colors = railColors(),
             )
         }
-        Spacer(Modifier.height(12.dp))
-        NavigationRailItem(
+        Spacer(Modifier.weight(1f))
+        HorizontalDivider(color = Ink.line, thickness = 1.dp)
+        RailEntry(
+            label = "设置",
             selected = false,
             onClick = onSettings,
-            icon = { Text("○") },
-            label = { Text("设置") },
-            colors = railColors(),
         )
+        Spacer(Modifier.height(8.dp))
     }
 }
 
 @Composable
-private fun railColors() = NavigationRailItemDefaults.colors(
-    selectedIconColor = Ink.bg,
-    selectedTextColor = Ink.fg,
-    unselectedIconColor = Ink.fg,
-    unselectedTextColor = Ink.fgSoft,
-    indicatorColor = Ink.fg,
-)
+private fun RailEntry(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .defaultMinSize(minHeight = 56.dp)
+            .background(if (selected) Ink.fg else Ink.bg)
+            .inkClickable(onClick = onClick)
+            .semantics { role = Role.Tab; this.selected = selected },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // 选中指示条：墨色锚点，未选中时透明占位保持对齐
+        Box(
+            Modifier
+                .width(4.dp)
+                .height(24.dp)
+                .background(if (selected) Ink.bg else Color.Transparent),
+        )
+        Text(
+            label,
+            Modifier.padding(start = 16.dp),
+            fontSize = 16.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+            color = if (selected) Ink.bg else Ink.fg,
+        )
+    }
+}
 
 @Composable
 private fun BottomNavigation(selected: Tab, onSelect: (Tab) -> Unit) {
