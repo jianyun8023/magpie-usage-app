@@ -26,6 +26,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -62,7 +63,9 @@ fun SettingsScreen(
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         // 仅横屏限宽并居中，竖屏保持原有全宽布局
-        val landscape = maxWidth >= 600.dp && maxWidth > maxHeight
+        val landscape =
+            LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE &&
+                maxWidth >= 600.dp
         Column(
             Modifier
                 .then(if (landscape) Modifier.widthIn(max = 1080.dp) else Modifier)

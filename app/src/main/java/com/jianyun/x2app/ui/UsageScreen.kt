@@ -25,7 +25,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import android.content.res.Configuration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -83,9 +85,10 @@ fun UsageScreen(
 
 @Composable
 private fun UsageOverview(usage: UsageSummary, modifier: Modifier = Modifier) {
+    // 以系统声明的方向为准，避免旋转重组瞬间读到残留的宽高比
+    val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     BoxWithConstraints(modifier.fillMaxSize()) {
-        // 横屏（宽大于高）时左栏指标+图表、右栏明细；竖屏单列
-        val twoPane = maxWidth >= 600.dp && maxWidth > maxHeight
+        val twoPane = landscape && maxWidth >= 600.dp
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -364,7 +367,7 @@ private fun UsageGroups(usage: UsageSummary, modifier: Modifier = Modifier) {
         else -> usage.agents
     }
     BoxWithConstraints(modifier.fillMaxSize()) {
-        val landscape = maxWidth > maxHeight
+        val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
         val perPage = when {
             landscape && maxWidth >= 840.dp -> 8
             landscape -> 6

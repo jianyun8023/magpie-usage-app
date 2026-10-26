@@ -95,7 +95,7 @@ fun App(settings: SettingsStore) {
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
     // 只有真实横屏才切换布局：竖屏（含平板竖屏）保持原有布局
-    val landscape = configuration.screenWidthDp > configuration.screenHeightDp
+    val landscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
     val engine = remember { com.jianyun.x2app.vpn.AppNetworkEngine.get(context) }
     val tailscaleState by engine.tailscale.collectAsState()
 
