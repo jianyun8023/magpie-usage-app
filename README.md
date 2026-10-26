@@ -40,6 +40,7 @@
 - **流水**：按时间、Agent、上游及失败状态筛选，分页或跳页，查看请求详情。
 - **用量**：查看今天、7 天、30 天的调用、费用与 Token 汇总，以及小时、每日和分组明细；按设备时区请求数据。
 - **网络**：导入 WireGuard `.conf`，或登录 Tailscale / Headscale，连接、断开并查看状态。
+- **更新**：在设置页手动检查 GitHub Release，可选择稳定版或 Beta，切换内置 GitHub 加速源或填写自定义前缀，并直接打开 GitHub 项目。
 
 ## 使用
 
@@ -68,6 +69,16 @@
 - **Tailscale**：控制服务器留空使用官方服务；连接 Headscale 时填写其控制服务器 URL，保存并按授权页面完成登录。服务地址支持 Tailnet IP 与网络内的 MagicDNS 名称；未知域名不会回落系统 DNS。更换控制服务器会断开并退出当前账号。
 
 WireGuard 与 Tailscale 互斥，切换时会先断开另一种。选择的应用内连接断开或失败时，请求会报错；如需直接访问，须明确选择「直连」。内置引擎不需要另装对应客户端，但仍需可用的服务端和账号授权。连接状态不等于 Magpie 服务可达，连接后仍需测试服务器地址。连接随应用进程存活；冷启动会恢复所选 Tailscale，WireGuard 需手动重连。
+
+### 检查更新
+
+在「设置 → 关于」中选择更新通道并点击「检查更新」。稳定版只检查正式 Release；Beta 同时检查正式版、预发布版与滚动 Snapshot。发现新版本后，可在浏览器下载 APK 或查看发布说明；「GitHub 项目」打开源码仓库。
+
+检查来源可选择 GitHub 官方、`gh-proxy.com`、`gh-proxy.org`、`hk.gh-proxy.org` 或自定义。这几个加速节点按其[官方使用说明](https://gh-proxy.com/docs/github-accelerator)支持 GitHub API；2026-10-26 已验证它们能返回本项目公开 Release 数据，可用性仍取决于当前网络与服务状态。
+
+自定义前缀若填写 `https://proxy.example/`，检查请求会转发到 `https://proxy.example/https://api.github.com/repos/jianyun8023/magpie-usage-app/releases/...`，APK 下载链接也使用同一前缀。请替换为实际可用且支持 GitHub API 转发的 HTTPS 加速站；仅支持附件下载的站点不能用于检查。通道和预设源即时保存，自定义前缀在点击检查时保存。
+
+更新检查遵守当前应用内网络选择，不发送 Magpie 网关 API Key，不会因隧道断开而回落直连。浏览器下载由系统浏览器的网络处理。此功能仅手动检查，不在后台轮询或自动安装。采用的更新源代码与版本比较库见 [第三方来源说明](third_party/app-updater/README.md)。
 
 ## 构建与测试
 
@@ -104,7 +115,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 ## 验证与已知限制
 
-目前通过 106 项 Kotlin 单元测试、21 项 Go 测试（含竞态检查），Debug / Release 构建和 lint 检查均通过（lint 无错误，仍有 16 项警告）。Note X2 / Android 11 真机通过 5 项测试：WireGuard 加密 HTTP 与断开后不回落直连、Headscale IP / MagicDNS HTTP 与断开后身份复用、无系统 VPN 服务声明、加密状态存储、Activity 重建时配置更新与恢复。真机 UI 按字体缩放 1.15 检查。
+目前通过 122 项 Kotlin 单元测试、21 项 Go 测试（含竞态检查），Debug / Release 构建和 lint 检查均通过（lint 无错误，仍有 16 项警告）。Note X2 / Android 11 真机通过 5 项测试：WireGuard 加密 HTTP 与断开后不回落直连、Headscale IP / MagicDNS HTTP 与断开后身份复用、无系统 VPN 服务声明、加密状态存储、Activity 重建时配置更新与恢复。真机 UI 按字体缩放 1.15 检查。
 
 - 官方 Tailscale 已在真机确认登录、子网访问及身份复用重连；应用进程启动时会自动恢复已选择的 Tailscale，但不提供设备开机后的后台自启。其他设备、ROM 和字体缩放仍需验证。
 - **Magpie 网关 API Key 目前存于普通 SharedPreferences，未加密，且未从系统备份中排除。** VPN 配置的加密存储不代表所有凭据都已加密。

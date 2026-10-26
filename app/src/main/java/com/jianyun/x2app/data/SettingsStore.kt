@@ -40,6 +40,19 @@ class SettingsStore private constructor(context: Context) {
     )
     val ignoredQuotaIds: StateFlow<Set<String>> = _ignoredQuotaIds
 
+    private val _updatePreferences = MutableStateFlow(UpdatePreferences(
+        channel = UpdateChannel.restored(prefs.getString(PREF_UPDATE_CHANNEL, null)),
+        proxyPrefix = prefs.getString(PREF_UPDATE_PROXY, "").orEmpty(),
+    ))
+    val updatePreferences: StateFlow<UpdatePreferences> = _updatePreferences
+
+    fun saveUpdatePreferences(value: UpdatePreferences) {
+        val normalized = value.copy(proxyPrefix = normalizedUpdateProxy(value.proxyPrefix))
+        prefs.edit().putString(PREF_UPDATE_CHANNEL, normalized.channel.name)
+            .putString(PREF_UPDATE_PROXY, normalized.proxyPrefix).apply()
+        _updatePreferences.value = normalized
+    }
+
     private fun load(): ServerConfig = ServerConfig(
         baseUrl = prefs.getString(PREF_URL, "") ?: "",
         webKey = prefs.getString(PREF_KEY, "") ?: "",
@@ -72,5 +85,7 @@ class SettingsStore private constructor(context: Context) {
         private const val PREF_URL = "base_url"
         private const val PREF_KEY = "web_key"
         private const val PREF_IGNORED_QUOTAS = "ignored_quota_ids"
+        private const val PREF_UPDATE_CHANNEL = "update_channel"
+        private const val PREF_UPDATE_PROXY = "update_proxy_prefix"
     }
 }

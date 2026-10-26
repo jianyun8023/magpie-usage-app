@@ -33,6 +33,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jianyun.x2app.data.ServerConfig
+import com.jianyun.x2app.data.UpdatePreferences
 import com.jianyun.x2app.data.normalizedServerConfig
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -41,6 +42,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun SettingsScreen(
     config: ServerConfig,
+    updatePreferences: UpdatePreferences,
+    onSaveUpdatePreferences: (UpdatePreferences) -> Unit,
     onSave: (baseUrl: String, webKey: String) -> Unit,
     onTest: suspend (baseUrl: String, webKey: String) -> String,
 ) {
@@ -177,6 +180,7 @@ fun SettingsScreen(
                 color = Ink.fgSoft,
                 lineHeight = 21.sp,
             )
+            UpdateSettings(updatePreferences, onSaveUpdatePreferences)
         }
     }
 }

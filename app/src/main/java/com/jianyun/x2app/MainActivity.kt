@@ -83,6 +83,7 @@ fun App(settings: SettingsStore) {
     var showSettings by rememberSaveable { mutableStateOf(false) }
     val tab = Tab.restored(tabName)
     val config by settings.config.collectAsState()
+    val updatePreferences by settings.updatePreferences.collectAsState()
     val quotasState by vm.quotas.collectAsState()
     val ignoredQuotaIds by settings.ignoredQuotaIds.collectAsState()
     val ledgerState by vm.ledger.collectAsState()
@@ -179,6 +180,8 @@ fun App(settings: SettingsStore) {
                         when {
                         !config.isSet || showSettings -> SettingsScreen(
                             config = config,
+                            updatePreferences = updatePreferences,
+                            onSaveUpdatePreferences = settings::saveUpdatePreferences,
                             onSave = { url, key ->
                                 settings.save(url, key)
                                 showSettings = false

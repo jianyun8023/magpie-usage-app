@@ -14,6 +14,14 @@ android {
         targetSdk = 34
         versionCode = 3
         versionName = "0.2.1"
+        val revision = runCatching {
+            providers.exec { commandLine("git", "rev-parse", "HEAD") }.standardOutput.asText.get().trim()
+        }.getOrDefault("")
+        val revisionTime = runCatching {
+            providers.exec { commandLine("git", "show", "-s", "--format=%ct", "HEAD") }.standardOutput.asText.get().trim().toLong()
+        }.getOrDefault(0L)
+        buildConfigField("String", "GIT_REVISION", "\"$revision\"")
+        buildConfigField("long", "GIT_REVISION_TIME", "${revisionTime}L")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
     }
@@ -45,6 +53,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.14"
@@ -57,6 +66,7 @@ android {
 }
 
 dependencies {
+    implementation("com.github.zafarkhaja:java-semver:0.10.2")
     implementation(files("libs/libappnet.aar"))
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
     implementation("com.wireguard.android:tunnel:1.0.20260102")

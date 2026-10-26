@@ -5,10 +5,33 @@ import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
 
 class MagpieTransportTest {
+    @Test fun directTransportRejectsOversizedResponses() = runTest {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setBody("x".repeat(4 * 1024 * 1024 + 1)))
+            try {
+                DirectHttpTransport.request(server.url("/releases").toString(), "", "GET")
+                fail("oversized response must fail")
+            } catch (e: IllegalStateException) {
+                assertTrue(e.message.orEmpty().contains("响应数据过大"))
+            }
+        }
+    }
+
+    @Test fun publicRequestsDoNotSendAuthorizationOrCookies() = runTest {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setBody("[]"))
+            assertEquals(200, DirectHttpTransport.request(server.url("/releases").toString(), "", "GET").statusCode)
+            val request = server.takeRequest()
+            assertNull(request.getHeader("Authorization"))
+            assertNull(request.getHeader("Cookie"))
+        }
+    }
+
     @Test fun apiUsesGatewayAuthenticationAndUnwrapsCards() = runTest {
         MagpieTransport.current = HttpTransport { url, authorization, method ->
             assertEquals("http://magpie.test:3425/v1/magpie/quotas/cards", url)

@@ -1,5 +1,7 @@
 package com.jianyun.x2app.api
 
+import java.io.ByteArrayOutputStream
+import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -24,14 +26,26 @@ object DirectHttpTransport : HttpTransport {
             connection.instanceFollowRedirects = false
             connection.connectTimeout = 8000
             connection.readTimeout = 45000
-            connection.setRequestProperty("Authorization", authorization)
+            if (authorization.isNotBlank()) connection.setRequestProperty("Authorization", authorization)
             connection.setRequestProperty("Accept", "application/json")
             val code = connection.responseCode
             val body = (if (code in 200..299) connection.inputStream else connection.errorStream)
-                ?.bufferedReader()?.use { it.readText() }.orEmpty()
+                ?.readResponseBody().orEmpty()
             return HttpResponse(code, body)
         } finally {
             connection.disconnect()
         }
     }
+}
+
+private fun InputStream.readResponseBody(): String = use { stream ->
+    val bytes = ByteArrayOutputStream()
+    val buffer = ByteArray(8192)
+    while (true) {
+        val count = stream.read(buffer)
+        if (count < 0) break
+        check(bytes.size() + count <= 4 * 1024 * 1024) { "响应数据过大，请稍后重试" }
+        bytes.write(buffer, 0, count)
+    }
+    bytes.toString(Charsets.UTF_8.name())
 }

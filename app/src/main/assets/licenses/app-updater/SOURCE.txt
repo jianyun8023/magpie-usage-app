@@ -1,0 +1,11 @@
+Adapted from pavi2410/kmp-app-updater
+https://github.com/pavi2410/kmp-app-updater
+Revision: 902a04af0c9b065ced2f249f82a58b8ee61f3cd1
+Copyright 2026 Pavitra Golchha
+License: Apache-2.0 (included as LICENSE)
+
+Files: GitHubUpdateSource.kt, ReleaseInfo.kt
+Modified to use the host application's transport, support update channels and
+GitHub acceleration prefixes, and retain additional release/asset metadata.
+
+Integration notes: third_party/app-updater/README.md in the source repository.

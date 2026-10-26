@@ -1,0 +1,4 @@
+Java SemVer 0.10.2
+https://github.com/zafarkhaja/jsemver
+Maven: com.github.zafarkhaja:java-semver:0.10.2
+License: MIT (included as LICENSE)
