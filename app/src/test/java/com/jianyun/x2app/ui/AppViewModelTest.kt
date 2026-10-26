@@ -203,10 +203,10 @@ class AppViewModelTest {
             assertEquals(null, vm.ledgerProvider.value)
             assertEquals(null, vm.ledgerAgent.value)
             assertEquals(false, vm.ledgerFailedOnly.value)
-            assertEquals("7d", vm.ledgerPeriod.value)
+            assertEquals("today", vm.ledgerPeriod.value)
             await { vm.ledger.value is LoadState.Ready }
             val request = server.requests.last()
-            assertTrue(request.startsWith("/v1/magpie/usage/requests?period=7d&limit=20&offset=0&tz="))
+            assertTrue(request.startsWith("/v1/magpie/usage/requests?period=today&limit=20&offset=0&tz="))
             assertTrue(!request.contains("agent=") && !request.contains("provider=") && !request.contains("failed="))
         }
     }
@@ -334,7 +334,7 @@ class AppViewModelTest {
             vm.loadUsage()
             await { vm.usage.value is LoadState.Ready }
             val zone = java.net.URLEncoder.encode(java.time.ZoneId.systemDefault().id, "UTF-8")
-            assertEquals("/v1/magpie/usage?period=7d&tz=$zone", server.requests.last())
+            assertEquals("/v1/magpie/usage?period=today&tz=$zone", server.requests.last())
         }
     }
 

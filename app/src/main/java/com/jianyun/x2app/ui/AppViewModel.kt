@@ -36,12 +36,12 @@ class AppViewModel internal constructor(private val config: StateFlow<ServerConf
     val ledger = MutableStateFlow<LoadState<Ledger>>(LoadState.Loading)
     val usage = MutableStateFlow<LoadState<UsageSummary>>(LoadState.Loading)
 
-    val ledgerPeriod = MutableStateFlow("7d")
+    val ledgerPeriod = MutableStateFlow("today")
     val ledgerFailedOnly = MutableStateFlow(false)
     val ledgerAgent = MutableStateFlow<String?>(null)
     val ledgerProvider = MutableStateFlow<String?>(null)
     val ledgerPage = MutableStateFlow(0)
-    val usagePeriod = MutableStateFlow("7d")
+    val usagePeriod = MutableStateFlow("today")
 
     private var loadedConfig: ServerConfig? = null
     private var quotasJob: Job? = null
@@ -220,7 +220,7 @@ class AppViewModel internal constructor(private val config: StateFlow<ServerConf
     }
 
     fun resetLedgerFilters() {
-        ledgerPeriod.value = "7d"
+        ledgerPeriod.value = "today"
         ledgerFailedOnly.value = false
         ledgerAgent.value = null
         ledgerProvider.value = null

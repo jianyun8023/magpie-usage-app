@@ -163,12 +163,14 @@ private fun QuotasBody(
 
 internal fun quotaColumns(width: Dp, height: Dp): Int = when {
     width <= height -> 1 // 竖屏保持单列
+    width >= 1200.dp -> 4
     width >= 900.dp -> 3
     else -> 2 // 横屏手机
 }
 
 internal fun quotaRows(height: Dp, width: Dp): Int = when {
-    width > height -> 1 // 横屏高度紧张，单行横向排布
+    width > height && height < 380.dp -> 1 // 横屏手机高度紧张时单行
+    width > height -> 2 // 横屏平板高度足够，两行铺满
     height >= 700.dp -> 3
     else -> 2 // 竖屏维持原布局
 }
