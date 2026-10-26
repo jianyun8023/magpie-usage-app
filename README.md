@@ -4,7 +4,35 @@
 
 [项目介绍与演示](https://jianyun8023.github.io/magpie-usage-app/) · [GitHub 仓库](https://github.com/jianyun8023/magpie-usage-app)
 
+### 最新界面
+
+2026-10-26 在 BOOX Note X2 上截取，展示 v0.2.1 的横竖屏布局。邮箱、服务器地址、Tailnet IP 和 Key 字段已遮挡，点击图片可查看大图。
+
+| 额度详情 · 横屏 | 用量分组 · 横屏 |
+| --- | --- |
+| [![额度窗口分为两列，账号邮箱已遮挡](docs/assets/v0.2.1-quota-details-landscape.webp)](docs/assets/v0.2.1-quota-details-landscape.webp) | [![调用、已计价费用、错误和 Token 按列对齐](docs/assets/v0.2.1-usage-groups-landscape.webp)](docs/assets/v0.2.1-usage-groups-landscape.webp) |
+| **用量明细 · 横屏** | **设置 · 横屏** |
+| [![左侧用量概览与图表，右侧每日明细](docs/assets/v0.2.1-usage-details-landscape.webp)](docs/assets/v0.2.1-usage-details-landscape.webp) | [![服务器与网络配置并列，网络地址及 Key 字段已遮挡](docs/assets/v0.2.1-settings-landscape.webp)](docs/assets/v0.2.1-settings-landscape.webp) |
+
+<details>
+<summary>查看竖屏每日明细</summary>
+
+<a href="docs/assets/v0.2.1-usage-details-portrait.webp"><img src="docs/assets/v0.2.1-usage-details-portrait.webp" alt="竖屏每日明细保留完整指标，每页七条记录" width="420"></a>
+
+</details>
+
+<details>
+<summary>演示数据截图与轮播</summary>
+
 ![真实 App 界面演示，使用演示数据](docs/assets/overview.gif)
+
+| 额度 | 流水 | 用量 |
+| --- | --- | --- |
+| ![额度页面](docs/assets/quotas.png) | ![请求流水页面](docs/assets/ledger.png) | ![用量汇总页面](docs/assets/usage.png) |
+
+以上为较早版本的演示界面，使用演示数据与打码示例账号，非真实账户及历史记录。GIF 按额度、流水、用量轮播展示截图。
+
+</details>
 
 ## 功能
 
@@ -12,12 +40,6 @@
 - **流水**：按时间、Agent、上游及失败状态筛选，分页或跳页，查看请求详情。
 - **用量**：查看今天、7 天、30 天的调用、费用与 Token 汇总，以及小时、每日和分组明细；按设备时区请求数据。
 - **网络**：导入 WireGuard `.conf`，或登录 Tailscale / Headscale，连接、断开并查看状态。
-
-| 额度 | 流水 | 用量 |
-| --- | --- | --- |
-| ![额度页面](docs/assets/quotas.png) | ![请求流水页面](docs/assets/ledger.png) | ![用量汇总页面](docs/assets/usage.png) |
-
-图片展示真实 App 界面，使用演示数据与打码示例账号，非真实账户及历史记录。GIF 按额度、流水、用量轮播展示截图。
 
 ## 使用
 
@@ -82,7 +104,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 ## 验证与已知限制
 
-目前通过 98 项 Kotlin 单元测试、21 项 Go 测试（含竞态检查），Debug / Release 构建和 lint 检查均通过（lint 无错误，仍有 16 项警告）。Note X2 / Android 11 真机通过 5 项测试：WireGuard 加密 HTTP 与断开后不回落直连、Headscale IP / MagicDNS HTTP 与断开后身份复用、无系统 VPN 服务声明、加密状态存储、Activity 重建时配置更新与恢复。真机 UI 按字体缩放 1.15 检查。
+目前通过 106 项 Kotlin 单元测试、21 项 Go 测试（含竞态检查），Debug / Release 构建和 lint 检查均通过（lint 无错误，仍有 16 项警告）。Note X2 / Android 11 真机通过 5 项测试：WireGuard 加密 HTTP 与断开后不回落直连、Headscale IP / MagicDNS HTTP 与断开后身份复用、无系统 VPN 服务声明、加密状态存储、Activity 重建时配置更新与恢复。真机 UI 按字体缩放 1.15 检查。
 
 - 官方 Tailscale 已在真机确认登录、子网访问及身份复用重连；应用进程启动时会自动恢复已选择的 Tailscale，但不提供设备开机后的后台自启。其他设备、ROM 和字体缩放仍需验证。
 - **Magpie 网关 API Key 目前存于普通 SharedPreferences，未加密，且未从系统备份中排除。** VPN 配置的加密存储不代表所有凭据都已加密。
