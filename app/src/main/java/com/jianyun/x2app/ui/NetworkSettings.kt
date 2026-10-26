@@ -33,7 +33,7 @@ import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.launch
 
 @Composable
-fun NetworkSettings() {
+fun NetworkSettings(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val engine = remember { AppNetworkEngine.get(context) }
     val mode by engine.mode.collectAsStateWithLifecycle()
@@ -80,7 +80,7 @@ fun NetworkSettings() {
         }
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text("网络接入", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Ink.fg)
             InkButton("刷新状态", { run { engine.refresh() } }, enabled = !busy)

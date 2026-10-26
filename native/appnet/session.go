@@ -30,6 +30,9 @@ func newSession(kind string, dial func(context.Context, string, string) (net.Con
 		Proxy:                 nil,
 		DialContext:           s.dialContext,
 		ResponseHeaderTimeout: responseHeaderTimeout,
+		MaxIdleConns:          20,
+		MaxIdleConnsPerHost:   4,
+		IdleConnTimeout:       idleConnTimeout,
 	}
 	return s
 }

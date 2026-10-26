@@ -297,6 +297,20 @@ class AppViewModelTest {
     }
 
     @Test
+    fun nextPageDoesNotOverflowWithExtremePageAndTotal() = runTest {
+        withFixture { vm, _, server, _ ->
+            loadAll(vm)
+            await { allReady(vm) }
+            val requestCount = server.requests.size
+            vm.ledgerPage.value = Int.MAX_VALUE - 1
+            vm.nextLedgerPage(Int.MAX_VALUE)
+            runCurrent()
+            assertEquals(Int.MAX_VALUE - 1, vm.ledgerPage.value)
+            assertEquals(requestCount, server.requests.size)
+        }
+    }
+
+    @Test
     fun explicitQuotaRefreshIsAskedEvenDuringAutomaticLoad() = runTest {
         withFixture { vm, _, server, _ ->
             val gate = server.block()

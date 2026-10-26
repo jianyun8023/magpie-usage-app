@@ -195,14 +195,12 @@ class AppNetworkEngine private constructor(private val context: Context) {
         poller = scope.launch {
             while (isActive) {
                 delay(2_000)
-                commands.withLock {
-                    if (!tailscale.value.engineActive) return@launch
-                    try { refreshTs() }
-                    catch (e: CancellationException) { throw e }
-                    catch (_: Exception) {
-                        block(AppNetworkMode.TAILSCALE)
-                        mutableTs.update { it.copy(nativeConnected = false, error = "无法读取 Tailscale 状态，请刷新或重新连接") }
-                    }
+                if (!mutableTs.value.engineActive) return@launch
+                try { refreshTs() }
+                catch (e: CancellationException) { throw e }
+                catch (_: Exception) {
+                    block(AppNetworkMode.TAILSCALE)
+                    mutableTs.update { it.copy(nativeConnected = false, error = "无法读取 Tailscale 状态，请刷新或重新连接") }
                 }
             }
         }

@@ -53,6 +53,20 @@ class LedgerScreenTest {
     }
 
     @Test
+    fun costFormattingStableAcrossDeviceLocale() {
+        val previous = java.util.Locale.getDefault()
+        try {
+            listOf(java.util.Locale.GERMANY, java.util.Locale.FRANCE, java.util.Locale.CHINA).forEach { locale ->
+                java.util.Locale.setDefault(locale)
+                assertEquals("$1.2345", formatCost(1.2345))
+                assertEquals("$0.0000", formatCost(0.0))
+            }
+        } finally {
+            java.util.Locale.setDefault(previous)
+        }
+    }
+
+    @Test
     fun billionTokenCountsUseBillionUnit() {
         val previous = java.util.Locale.getDefault()
         try {

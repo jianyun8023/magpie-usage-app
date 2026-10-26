@@ -62,12 +62,15 @@ func (c *Client) StopWireGuard() error {
 }
 
 func decodeIPList(encoded string) ([]netip.Addr, error) {
-	var values []string
+	var values *[]string
 	if err := json.Unmarshal([]byte(encoded), &values); err != nil {
 		return nil, errors.New("invalid IP list")
 	}
-	ips := make([]netip.Addr, 0, len(values))
-	for _, value := range values {
+	if values == nil {
+		return nil, errors.New("invalid IP list")
+	}
+	ips := make([]netip.Addr, 0, len(*values))
+	for _, value := range *values {
 		ip, err := netip.ParseAddr(value)
 		if err != nil {
 			return nil, errors.New("invalid IP list")

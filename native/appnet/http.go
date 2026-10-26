@@ -13,6 +13,7 @@ const (
 	requestTimeout        = 45 * time.Second
 	dialTimeout           = 20 * time.Second
 	responseHeaderTimeout = 40 * time.Second // A quota refresh may read vendors for up to 30 seconds.
+	idleConnTimeout       = 90 * time.Second
 	maxResponseBody       = 4 << 20
 	maxRedirects          = 4
 )

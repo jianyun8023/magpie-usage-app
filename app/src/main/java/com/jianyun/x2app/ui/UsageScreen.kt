@@ -83,24 +83,37 @@ fun UsageScreen(
 
 @Composable
 private fun UsageOverview(usage: UsageSummary, modifier: Modifier = Modifier) {
-    Column(
-        modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        SummaryGrid(usage)
-        if (usage.series.isNotEmpty()) {
-            SectionTitle(if (usage.period == "today") "每小时调用" else "每日调用")
-            DayBars(usage.series, usage.period)
-            DailyDetails(usage)
-        } else {
-            Text("所选周期没有调用数据", color = Ink.fgSoft, fontSize = 15.sp)
+    BoxWithConstraints(modifier.fillMaxSize()) {
+        val twoPane = maxWidth >= 720.dp
+        Column(
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            if (twoPane) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    SummaryGrid(usage, Modifier.weight(1f))
+                    DailyDetails(usage, Modifier.weight(1f))
+                }
+            } else {
+                SummaryGrid(usage)
+            }
+            if (usage.series.isNotEmpty()) {
+                SectionTitle(if (usage.period == "today") "每小时调用" else "每日调用")
+                DayBars(usage.series, usage.period)
+                if (!twoPane) DailyDetails(usage)
+            } else {
+                Text("所选周期没有调用数据", color = Ink.fgSoft, fontSize = 15.sp)
+            }
         }
     }
 }
 
 @Composable
-private fun SummaryGrid(usage: UsageSummary) {
-    Column(Modifier.fillMaxWidth().border(1.dp, Ink.fg).padding(16.dp)) {
+private fun SummaryGrid(usage: UsageSummary, modifier: Modifier = Modifier) {
+    Column(modifier.fillMaxWidth().border(1.dp, Ink.fg).padding(16.dp)) {
         MetricGrid(overviewMetrics(usage))
         Text(
             "重试 ${usage.retried} 次 · 未计价 ${usage.unpriced} 次",
@@ -135,6 +148,7 @@ private fun MetricGrid(metrics: List<UsageMetric>) {
     val fontScale = LocalDensity.current.fontScale
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val columns = when {
+            maxWidth / fontScale >= 620.dp -> 4
             maxWidth / fontScale >= 420.dp -> 3
             maxWidth / fontScale >= 240.dp -> 2
             else -> 1
@@ -230,14 +244,14 @@ internal fun dailyMetrics(day: UsageSummary.DayPoint): List<UsageMetric> = listO
 )
 
 @Composable
-private fun DailyDetails(usage: UsageSummary) {
+private fun DailyDetails(usage: UsageSummary, modifier: Modifier = Modifier) {
     val series = detailSeries(usage.series, usage.period)
     var expanded by rememberSaveable(usage.period) { mutableStateOf(usage.series.size > 7) }
     var page by rememberSaveable(usage.period, usage.since, series.size) { mutableStateOf(0) }
     val pageCount = dailyDetailsPageCount(series)
     val safePage = page.coerceIn(0, pageCount - 1)
     val title = if (usage.period == "today") "每小时明细" else "每日明细"
-    Column(Modifier.fillMaxWidth()) {
+    Column(modifier.fillMaxWidth()) {
         InkButton(
             if (expanded) "收起$title" else "查看$title",
             { expanded = !expanded },
@@ -332,32 +346,35 @@ private fun UsageGroups(usage: UsageSummary, modifier: Modifier = Modifier) {
         "accounts" -> usage.accounts
         else -> usage.agents
     }
-    val perPage = 4
-    val pageCount = ceil(items.size.toDouble() / perPage).toInt().coerceAtLeast(1)
-    val safePage = page.coerceIn(0, pageCount - 1)
-    Column(modifier.fillMaxWidth()) {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            listOf("agents" to "Agent", "models" to "模型", "accounts" to "账号").forEach { (value, label) ->
-                InkButton(label, { group = value }, Modifier.weight(1f), selected = group == value)
-            }
-        }
-        key(group, usage.period, usage.since, safePage) { Column(
-            Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
-        ) {
-            if (items.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("此分组暂无数据", color = Ink.fgSoft, fontSize = 16.sp)
+    BoxWithConstraints(modifier.fillMaxSize()) {
+        val perPage = if (maxWidth >= 900.dp) 8 else if (maxWidth >= 600.dp) 6 else 4
+        val pageCount = ceil(items.size.toDouble() / perPage).toInt().coerceAtLeast(1)
+        val safePage = page.coerceIn(0, pageCount - 1)
+        Column(Modifier.fillMaxSize()) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                listOf("agents" to "Agent", "models" to "模型", "accounts" to "账号").forEach { (value, label) ->
+                    InkButton(label, { group = value }, Modifier.weight(1f), selected = group == value)
                 }
-            } else {
-                items.drop(safePage * perPage).take(perPage).forEach { item -> GroupRow(item) }
             }
-        } }
-        PageControls(safePage, pageCount, { page = it })
+            key(group, usage.period, usage.since, safePage) { Column(
+                Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
+            ) {
+                if (items.isEmpty()) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("此分组暂无数据", color = Ink.fgSoft, fontSize = 16.sp)
+                    }
+                } else {
+                    items.drop(safePage * perPage).take(perPage).forEach { item -> GroupRow(item) }
+                }
+            } }
+            PageControls(safePage, pageCount, { page = it })
+        }
     }
 }
+
 
 @Composable
 private fun GroupRow(item: UsageSummary.UsageGroup) {

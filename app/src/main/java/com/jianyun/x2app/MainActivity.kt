@@ -10,13 +10,18 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.NavigationRailItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -28,26 +33,33 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jianyun.x2app.data.SettingsStore
 import com.jianyun.x2app.ui.AppViewModel
 import com.jianyun.x2app.ui.Ink
-import com.jianyun.x2app.ui.LoadState
 import com.jianyun.x2app.ui.InkButton
 import com.jianyun.x2app.ui.LedgerScreen
+import com.jianyun.x2app.ui.LoadState
 import com.jianyun.x2app.ui.QuotasScreen
 import com.jianyun.x2app.ui.SettingsScreen
 import com.jianyun.x2app.ui.UsageScreen
 import com.jianyun.x2app.ui.inkClickable
 
-enum class Tab(val label: String) { QUOTAS("额度"), LEDGER("流水"), USAGE("用量") }
+enum class Tab(val label: String) {
+    QUOTAS("额度"), LEDGER("流水"), USAGE("用量");
+
+    companion object {
+        fun restored(name: String?): Tab = entries.firstOrNull { it.name == name } ?: QUOTAS
+    }
+}
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -65,7 +77,7 @@ fun App(settings: SettingsStore) {
     )
     var tabName by rememberSaveable { mutableStateOf(Tab.QUOTAS.name) }
     var showSettings by rememberSaveable { mutableStateOf(false) }
-    val tab = Tab.valueOf(tabName)
+    val tab = Tab.restored(tabName)
     val config by settings.config.collectAsState()
     val quotasState by vm.quotas.collectAsState()
     val ignoredQuotaIds by settings.ignoredQuotaIds.collectAsState()
@@ -78,6 +90,7 @@ fun App(settings: SettingsStore) {
     val ledgerPage by vm.ledgerPage.collectAsState()
     val usagePeriod by vm.usagePeriod.collectAsState()
     val context = LocalContext.current
+    val wideNavigation = LocalConfiguration.current.screenWidthDp >= 600
     val engine = remember { com.jianyun.x2app.vpn.AppNetworkEngine.get(context) }
     val tailscaleState by engine.tailscale.collectAsState()
 
@@ -108,104 +121,196 @@ fun App(settings: SettingsStore) {
             error = Ink.danger,
         ),
     ) {
-        Scaffold(
-            containerColor = Ink.bg,
-            topBar = {
-                Column {
-                    Row(
-                        Modifier.fillMaxWidth().defaultMinSize(minHeight = 64.dp)
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            if (showSettings || !config.isSet) "设置" else "Magpie ${tab.label}",
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Ink.fg,
-                            modifier = Modifier.weight(1f),
-                        )
-                        if (!showSettings) {
-                            InkButton("刷新", {
-                                when (tab) {
-                                    Tab.QUOTAS -> vm.refreshQuotas()
-                                    Tab.LEDGER -> vm.refreshLedger()
-                                    Tab.USAGE -> vm.refreshUsage()
-                                }
-                            })
-                            Spacer(Modifier.width(8.dp))
-                        }
-                        InkButton(if (showSettings) "返回" else "设置", { showSettings = !showSettings })
-                    }
-                    HorizontalDivider(color = Ink.fg, thickness = 1.dp)
-                }
-            },
-            bottomBar = {
-                if (!showSettings && config.isSet) {
-                    Column {
-                        HorizontalDivider(color = Ink.fg, thickness = 1.dp)
-                        Row(Modifier.fillMaxWidth().selectableGroup().padding(horizontal = 16.dp, vertical = 8.dp)) {
-                            Tab.entries.forEach { item ->
-                                Box(
-                                    Modifier.weight(1f).defaultMinSize(minHeight = 64.dp)
-                                        .semantics {
-                                            role = Role.Tab
-                                            selected = tab == item
-                                        }
-                                        .inkClickable { tabName = item.name },
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Text(
-                                        if (tab == item) "■ ${item.label}" else item.label,
-                                        fontSize = 17.sp,
-                                        fontWeight = if (tab == item) FontWeight.Bold else FontWeight.Normal,
-                                        color = Ink.fg,
-                                    )
-                                }
+        Row(Modifier.fillMaxSize()) {
+            if (wideNavigation && config.isSet && !showSettings) {
+                WideNavigationRail(
+                    selected = tab,
+                    onSelect = { tabName = it.name },
+                    onSettings = { showSettings = true },
+                )
+                VerticalDivider(color = Ink.fg, thickness = 1.dp)
+            }
+            Scaffold(
+                containerColor = Ink.bg,
+                topBar = {
+                    AppTopBar(
+                        title = if (!config.isSet || showSettings) "设置" else "Magpie ${tab.label}",
+                        showRefresh = config.isSet && !showSettings,
+                        showBack = config.isSet && showSettings,
+                        onRefresh = {
+                            when (tab) {
+                                Tab.QUOTAS -> vm.refreshQuotas()
+                                Tab.LEDGER -> vm.refreshLedger()
+                                Tab.USAGE -> vm.refreshUsage()
                             }
-                        }
+                        },
+                        onBack = { showSettings = false },
+                    )
+                },
+                bottomBar = {
+                    if (!wideNavigation && !showSettings && config.isSet) {
+                        BottomNavigation(selected = tab, onSelect = { tabName = it.name })
+                    }
+                },
+            ) { padding ->
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                        .then(if (wideNavigation) Modifier.widthIn(max = 1040.dp) else Modifier)
+                ) {
+                    when {
+                        !config.isSet || showSettings -> SettingsScreen(
+                            config = config,
+                            onSave = { url, key ->
+                                settings.save(url, key)
+                                showSettings = false
+                            },
+                            onTest = vm::testConnection,
+                        )
+                        tab == Tab.QUOTAS -> QuotasScreen(
+                            state = quotasState,
+                            ignoredIds = ignoredQuotaIds,
+                            onToggleIgnored = settings::setQuotaIgnored,
+                            onRefresh = vm::refreshQuotas,
+                            onRefreshCard = vm::refreshQuota,
+                        )
+                        tab == Tab.LEDGER -> LedgerScreen(
+                            state = ledgerState,
+                            period = ledgerPeriod,
+                            failedOnly = ledgerFailedOnly,
+                            agent = ledgerAgent,
+                            provider = ledgerProvider,
+                            page = ledgerPage,
+                            onPeriod = vm::setLedgerPeriod,
+                            onToggleFailed = vm::toggleFailedOnly,
+                            onAgent = vm::setLedgerAgent,
+                            onProvider = vm::setLedgerProvider,
+                            onResetFilters = vm::resetLedgerFilters,
+                            onPrevious = vm::previousLedgerPage,
+                            onNext = vm::nextLedgerPage,
+                            onPage = vm::setLedgerPage,
+                            onRefresh = vm::refreshLedger,
+                        )
+                        tab == Tab.USAGE -> UsageScreen(
+                            state = usageState,
+                            period = usagePeriod,
+                            onPeriod = vm::setUsagePeriod,
+                            onRefresh = vm::refreshUsage,
+                        )
                     }
                 }
-            },
-        ) { padding ->
-            Box(Modifier.fillMaxSize().padding(padding)) {
-                when {
-                    !config.isSet || showSettings -> SettingsScreen(
-                        config = config,
-                        onSave = { url, key ->
-                            settings.save(url, key)
-                            showSettings = false
-                        },
-                        onTest = vm::testConnection,
-                    )
-                    tab == Tab.QUOTAS -> QuotasScreen(
-                        state = quotasState,
-                        ignoredIds = ignoredQuotaIds,
-                        onToggleIgnored = settings::setQuotaIgnored,
-                        onRefresh = vm::refreshQuotas,
-                        onRefreshCard = vm::refreshQuota,
-                    )
-                    tab == Tab.LEDGER -> LedgerScreen(
-                        state = ledgerState,
-                        period = ledgerPeriod,
-                        failedOnly = ledgerFailedOnly,
-                        agent = ledgerAgent,
-                        provider = ledgerProvider,
-                        page = ledgerPage,
-                        onPeriod = vm::setLedgerPeriod,
-                        onToggleFailed = vm::toggleFailedOnly,
-                        onAgent = vm::setLedgerAgent,
-                        onProvider = vm::setLedgerProvider,
-                        onResetFilters = vm::resetLedgerFilters,
-                        onPrevious = vm::previousLedgerPage,
-                        onNext = vm::nextLedgerPage,
-                        onPage = vm::setLedgerPage,
-                        onRefresh = vm::refreshLedger,
-                    )
-                    tab == Tab.USAGE -> UsageScreen(
-                        state = usageState,
-                        period = usagePeriod,
-                        onPeriod = vm::setUsagePeriod,
-                        onRefresh = vm::refreshUsage,
+            }
+        }
+    }
+}
+
+@Composable
+private fun AppTopBar(
+    title: String,
+    showRefresh: Boolean,
+    showBack: Boolean,
+    onRefresh: () -> Unit,
+    onBack: () -> Unit,
+) {
+    Column {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .defaultMinSize(minHeight = 64.dp)
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                title,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                color = Ink.fg,
+                modifier = Modifier.weight(1f),
+            )
+            if (showRefresh) {
+                InkButton("刷新", onRefresh)
+            }
+            if (showBack) {
+                InkButton("返回", onBack)
+            }
+        }
+        HorizontalDivider(color = Ink.fg, thickness = 1.dp)
+    }
+}
+
+@Composable
+private fun WideNavigationRail(
+    selected: Tab,
+    onSelect: (Tab) -> Unit,
+    onSettings: () -> Unit,
+) {
+    NavigationRail(
+        containerColor = Ink.bg,
+        contentColor = Ink.fg,
+    ) {
+        Text(
+            "Magpie",
+            Modifier.padding(start = 18.dp, top = 18.dp, bottom = 14.dp),
+            fontSize = 17.sp,
+            fontWeight = FontWeight.Bold,
+        )
+        Tab.entries.forEach { item ->
+            NavigationRailItem(
+                selected = selected == item,
+                onClick = { onSelect(item) },
+                icon = { Text(if (selected == item) "■" else "□") },
+                label = { Text(item.label) },
+                colors = railColors(),
+            )
+        }
+        Spacer(Modifier.height(12.dp))
+        NavigationRailItem(
+            selected = false,
+            onClick = onSettings,
+            icon = { Text("○") },
+            label = { Text("设置") },
+            colors = railColors(),
+        )
+    }
+}
+
+@Composable
+private fun railColors() = NavigationRailItemDefaults.colors(
+    selectedIconColor = Ink.bg,
+    selectedTextColor = Ink.fg,
+    unselectedIconColor = Ink.fg,
+    unselectedTextColor = Ink.fgSoft,
+    indicatorColor = Ink.fg,
+)
+
+@Composable
+private fun BottomNavigation(selected: Tab, onSelect: (Tab) -> Unit) {
+    Column {
+        HorizontalDivider(color = Ink.fg, thickness = 1.dp)
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .selectableGroup()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+        ) {
+            Tab.entries.forEach { item ->
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .defaultMinSize(minHeight = 64.dp)
+                        .semantics {
+                            role = Role.Tab
+                            this.selected = selected == item
+                        }
+                        .inkClickable { onSelect(item) },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        if (selected == item) "■ ${item.label}" else item.label,
+                        fontSize = 17.sp,
+                        fontWeight = if (selected == item) FontWeight.Bold else FontWeight.Normal,
+                        color = Ink.fg,
                     )
                 }
             }

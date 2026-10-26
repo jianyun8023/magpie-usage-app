@@ -162,8 +162,6 @@ func localLogout(server *tsnet.Server) error {
 }
 
 func (c *Client) TailscaleStatusJSON() (string, error) {
-	c.opMutex.Lock()
-	defer c.opMutex.Unlock()
 	c.mu.Lock()
 	active := c.active
 	c.mu.Unlock()
@@ -174,7 +172,7 @@ func (c *Client) TailscaleStatusJSON() (string, error) {
 	if err != nil {
 		return "", publicError(err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
+	ctx, cancel := context.WithTimeout(active.ctx, requestTimeout)
 	defer cancel()
 	status, err := lc.Status(ctx)
 	if err != nil {

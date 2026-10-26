@@ -43,6 +43,7 @@ import com.jianyun.x2app.data.QuotaWindow
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import androidx.compose.ui.unit.Dp
 import kotlin.math.ceil
 import kotlin.math.roundToInt
 
@@ -117,8 +118,8 @@ private fun QuotasBody(
             return@Column
         }
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
-            val columns = if (maxWidth >= 700.dp) 2 else 1
-            val rows = if (maxHeight >= 700.dp) 3 else 2
+            val columns = quotaColumns(maxWidth)
+            val rows = quotaRows(maxHeight)
             val perPage = columns * rows
             val pageCount = ceil(visibleData.size.toDouble() / perPage).toInt().coerceAtLeast(1)
             val safePage = page.coerceIn(0, pageCount - 1)
@@ -160,6 +161,19 @@ private fun QuotasBody(
     }
 }
 
+internal fun quotaColumns(width: Dp): Int = when {
+    width >= 1000.dp -> 4
+    width >= 720.dp -> 3
+    width >= 420.dp -> 2
+    else -> 1
+}
+
+internal fun quotaRows(height: Dp): Int = when {
+    height >= 700.dp -> 3
+    height >= 420.dp -> 2
+    else -> 1
+}
+
 @Composable
 private fun QuotaManager(
     cards: List<QuotaCard>,
@@ -168,46 +182,82 @@ private fun QuotaManager(
     onClose: () -> Unit,
 ) {
     var page by rememberSaveable { mutableStateOf(0) }
-    val perPage = 8
-    val pageCount = ceil(cards.size.toDouble() / perPage).toInt().coerceAtLeast(1)
-    val safePage = page.coerceIn(0, pageCount - 1)
-    Column(Modifier.fillMaxSize()) {
-        Row(
-            Modifier.fillMaxWidth().padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text("管理上游", Modifier.weight(1f), fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            InkButton("完成", onClose)
-        }
-        Column(
-            Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
-        ) {
-            cards.drop(safePage * perPage).take(perPage).forEach { card ->
-                val id = quotaId(card)
-                val ignored = id in ignoredIds
-                Row(
-                    Modifier.fillMaxWidth().padding(vertical = 4.dp).border(1.dp, Ink.line).padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f).padding(end = 12.dp)) {
-                        Text(
-                            quotaDisplayTitle(card),
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        val subtitle = listOfNotNull(card.from, card.user).joinToString(" · ")
-                        if (subtitle.isNotBlank()) {
-                            Text(subtitle, fontSize = 13.sp, color = Ink.fgSoft, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val managerMaxWidth = this@BoxWithConstraints.maxWidth
+        val perPage = quotaManagerRows(this@BoxWithConstraints.maxHeight) * quotaManagerColumns(managerMaxWidth)
+        val pageCount = ceil(cards.size.toDouble() / perPage).toInt().coerceAtLeast(1)
+        val safePage = page.coerceIn(0, pageCount - 1)
+        Column(Modifier.fillMaxSize()) {
+            Row(
+                Modifier.fillMaxWidth().padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("管理上游", Modifier.weight(1f), fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                InkButton("完成", onClose)
+            }
+            val columns = quotaManagerColumns(managerMaxWidth)
+            Column(
+                Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                cards.drop(safePage * perPage).take(perPage).chunked(columns).forEach { rowCards ->
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        rowCards.forEach { card ->
+                            Box(Modifier.weight(1f)) {
+                                ManagedQuotaCard(card, quotaId(card) in ignoredIds) {
+                                    onToggleIgnored(quotaId(card), !(quotaId(card) in ignoredIds))
+                                }
+                            }
                         }
+                        repeat(columns - rowCards.size) { Spacer(Modifier.weight(1f)) }
                     }
-                    InkButton(if (ignored) "恢复" else "忽略", { onToggleIgnored(id, !ignored) }, selected = ignored)
                 }
             }
+            if (pageCount > 1) PageControls(safePage, pageCount, { page = it })
         }
-        if (pageCount > 1) PageControls(safePage, pageCount, { page = it })
     }
+}
+
+@Composable
+private fun ManagedQuotaCard(
+    card: QuotaCard,
+    ignored: Boolean,
+    onToggle: () -> Unit,
+) {
+    Row(
+        Modifier.fillMaxWidth().border(1.dp, Ink.line).padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f).padding(end = 12.dp)) {
+            Text(
+                quotaDisplayTitle(card),
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            val subtitle = listOfNotNull(card.from, card.user).joinToString(" · ")
+            if (subtitle.isNotBlank()) {
+                Text(subtitle, fontSize = 13.sp, color = Ink.fgSoft, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        InkButton(if (ignored) "恢复" else "忽略", onToggle, selected = ignored)
+    }
+}
+
+internal fun quotaManagerColumns(width: Dp): Int = when {
+    width >= 900.dp -> 3
+    width >= 560.dp -> 2
+    else -> 1
+}
+
+internal fun quotaManagerRows(height: Dp): Int = when {
+    height >= 620.dp -> 8
+    height >= 420.dp -> 6
+    else -> 4
 }
 
 private fun sortedQuotaCards(cards: List<QuotaCard>): List<QuotaCard> = cards.sortedWith(

@@ -141,7 +141,7 @@ class AppViewModel internal constructor(private val config: StateFlow<ServerConf
                     val data = api.requests(
                         period = period,
                         limit = LEDGER_PAGE_SIZE,
-                        offset = page * LEDGER_PAGE_SIZE,
+                        offset = page.toLong() * LEDGER_PAGE_SIZE,
                         failed = failed,
                         agent = agent,
                         provider = provider,
@@ -235,7 +235,7 @@ class AppViewModel internal constructor(private val config: StateFlow<ServerConf
     }
 
     fun nextLedgerPage(total: Int) {
-        if ((ledgerPage.value + 1) * LEDGER_PAGE_SIZE >= total) return
+        if ((ledgerPage.value + 1L) * LEDGER_PAGE_SIZE >= total) return
         ledgerPage.value += 1
         restartLedger()
     }

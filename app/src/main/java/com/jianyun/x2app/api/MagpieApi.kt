@@ -8,6 +8,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.net.ConnectException
+import java.net.MalformedURLException
 import java.net.SocketTimeoutException
 import java.net.URI
 import java.net.URLEncoder
@@ -17,16 +18,11 @@ import javax.net.ssl.SSLException
 
 // 这个 ROM 上 OkHttp 的 NIO 线程会挂起，平台 HttpURLConnection 实测正常
 class MagpieApi(
-    private var baseUrl: String,
-    private var webKey: String,
+    private val baseUrl: String,
+    private val webKey: String,
     private val transport: HttpTransport? = null,
 ) {
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
-
-    fun updateConfig(baseUrl: String, webKey: String) {
-        this.baseUrl = baseUrl.trim().trimEnd('/')
-        this.webKey = webKey
-    }
 
     private fun normalizedBaseUrl(): String {
         val value = baseUrl.trim().trimEnd('/')
@@ -68,7 +64,7 @@ class MagpieApi(
     suspend fun requests(
         period: String = "7d",
         limit: Int = 100,
-        offset: Int = 0,
+        offset: Long = 0,
         agent: String? = null,
         provider: String? = null,
         failed: Boolean = false,
@@ -103,6 +99,7 @@ fun Throwable.friendlyMessage(): String = when (this) {
     is SocketTimeoutException -> "连接或读取超时，请检查地址、端口和网络"
     is ConnectException -> "无法连接服务器，请检查地址、端口和服务状态"
     is SSLException -> "HTTPS 连接失败，请检查证书和地址"
+    is MalformedURLException -> "服务器地址无效，请检查 URL"
     is IllegalArgumentException -> message ?: "服务器地址格式不正确"
     else -> "连接失败：${message ?: javaClass.simpleName}"
 }

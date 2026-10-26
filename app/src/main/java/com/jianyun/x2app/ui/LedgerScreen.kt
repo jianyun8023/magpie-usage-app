@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jianyun.x2app.data.Ledger
 import com.jianyun.x2app.data.RequestRow
+import java.util.Locale
 import kotlin.math.ceil
 
 @Composable
@@ -420,7 +421,7 @@ fun RequestRowItem(row: RequestRow, onClick: (() -> Unit)? = null) {
             )
             val cost = when {
                 row.priced == false -> "未计价"
-                row.cost != null -> "$%.4f".format(row.cost)
+                row.cost != null -> formatCost(row.cost)
                 else -> ""
             }
             Text(listOf(cost, fmtMs(row.ms)).filter { it.isNotEmpty() }.joinToString(" · "), fontSize = 13.sp, color = Ink.fgSoft)
@@ -432,17 +433,19 @@ fun RequestRowItem(row: RequestRow, onClick: (() -> Unit)? = null) {
 }
 
 fun fmtNum(n: Long): String = when {
-    n >= 1_000_000_000 -> "%.1fB".format(n / 1_000_000_000.0)
-    n >= 1_000_000 -> "%.1fM".format(n / 1_000_000.0)
-    n >= 1_000 -> "%.1fk".format(n / 1_000.0)
+    n >= 1_000_000_000 -> String.format(Locale.US, "%.1fB", n / 1_000_000_000.0)
+    n >= 1_000_000 -> String.format(Locale.US, "%.1fM", n / 1_000_000.0)
+    n >= 1_000 -> String.format(Locale.US, "%.1fk", n / 1_000.0)
     else -> n.toString()
 }
 
 fun fmtMs(ms: Long): String = when {
     ms >= 60_000 -> "${ms / 60_000}m${(ms % 60_000) / 1000}s"
-    ms >= 1000 -> "%.1fs".format(ms / 1000.0)
+    ms >= 1000 -> String.format(Locale.US, "%.1fs", ms / 1000.0)
     else -> "${ms}ms"
 }
+
+internal fun formatCost(value: Double): String = String.format(Locale.US, "$%.4f", value)
 
 fun fmtTime(iso: String): String {
     val formatter = java.time.format.DateTimeFormatter.ofPattern("MM-dd HH:mm:ss")
